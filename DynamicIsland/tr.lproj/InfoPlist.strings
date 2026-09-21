@@ -1,0 +1,14 @@
+"CFBundleDisplayName" = "Vone";
+"NSAppleEventsUsageDescription" = "Vone, Spotify ve Apple Music'i kontrol etmek için AppleScript kullanır.";
+"NSBluetoothAlwaysUsageDescription" = "Vone, ses aygıtları bağlandığında bunları algılamak ve HUD'da pil durumlarını göstermek için Bluetooth erişimine ihtiyaç duyar.";
+"NSCalendarsFullAccessUsageDescription" = "Takvim etkinliklerini çentik içinde gösterir.";
+"NSCalendarsUsageDescription" = "Takvim modu için gereklidir.";
+"NSCameraUsageDescription" = "Ayna modu için kameranıza ihtiyaç duyuyoruz.";
+"NSDesktopFolderUsageDescription" = "Vone, ekran görüntülerini masaüstünüze kaydetmek için erişime ihtiyaç duyar.";
+"NSDocumentsFolderUsageDescription" = "Vone, rafa sürüklenen dosyaları kaydetmek ve okumak için erişime ihtiyaç duyar.";
+"NSDownloadsFolderUsageDescription" = "Vone, İndirilenler klasöründeki dosyaları okumak için erişime ihtiyaç duyar.";
+"NSLocationUsageDescription" = "Vone, doğru kilit ekranı hava durumunu göstermek için konumunuzu kullanır.";
+"NSLocationWhenInUseUsageDescription" = "Vone, doğru kilit ekranı hava durumunu göstermek için konumunuzu kullanır.";
+"NSRemindersUsageDescription" = "Vone, anımsatıcılarınızı göstermek için Anımsatıcılar erişimine ihtiyaç duyar.";
+"NSAudioCaptureUsageDescription" = "Vone, gerçek zamanlı müzik dalga biçimi görselleştiricisini göstermek için ses yakalama iznine ihtiyaç duyar.";
+"NSScreenCaptureUsageDescription" = "Vone, yapay zeka asistanı özelliği için ekran görüntüleri yakalamak üzere ekran kaydı iznine ihtiyaç duyar.";
