@@ -63,6 +63,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     case colorPicker
     case downloads
     case shelf
+    case tools
     case shortcuts
     case notes
     case terminal
@@ -77,7 +78,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .media, .liveActivities, .lockScreen, .devices:                 return .mediaAndDisplay
         case .hudAndOSD, .battery:                                           return .system
         case .timer, .calendar, .notes:                                      return .productivity
-        case .clipboard, .screenAssistant, .colorPicker, .shelf,
+        case .clipboard, .screenAssistant, .colorPicker, .shelf, .tools,
              .downloads, .shortcuts:                                         return .utilities
         case .stats, .terminal:                                              return .developer
         case .extensions:                                                    return .integrations
@@ -104,6 +105,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .colorPicker: return String(localized: "Color Picker")
         case .downloads: return String(localized: "Downloads")
         case .shelf: return String(localized: "Shelf")
+        case .tools: return String(localized: "Tools")
         case .shortcuts: return String(localized: "Shortcuts")
         case .notes: return String(localized: "Notes")
         case .terminal: return String(localized: "Terminal")
@@ -130,6 +132,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .colorPicker: return "eyedropper"
         case .downloads: return "square.and.arrow.down"
         case .shelf: return "books.vertical"
+        case .tools: return "wrench.and.screwdriver"
         case .shortcuts: return "keyboard"
         case .notes: return "note.text"
         case .terminal: return "apple.terminal"
@@ -156,6 +159,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .colorPicker: return .accentColor
         case .downloads: return .gray
         case .shelf: return .brown
+        case .tools: return .indigo
         case .shortcuts: return .orange
         case .notes: return Color(red: 0.979, green: 0.716, blue: 0.153, opacity: 1.000)
         case .terminal: return Color(red: 0.2, green: 0.8, blue: 0.4)
@@ -481,6 +485,15 @@ private enum SettingsSearchIndex {
         SettingsSearchEntry(tab: .terminal, title: "Scrollback lines", keywords: ["terminal", "scrollback", "buffer", "history"], highlightID: SettingsTab.terminal.highlightID(for: "Scrollback lines")),
         SettingsSearchEntry(tab: .terminal, title: "Option as Meta", keywords: ["terminal", "option", "meta", "alt", "key"], highlightID: SettingsTab.terminal.highlightID(for: "Option as Meta")),
         SettingsSearchEntry(tab: .terminal, title: "Mouse reporting", keywords: ["terminal", "mouse", "reporting", "vim", "tmux"], highlightID: SettingsTab.terminal.highlightID(for: "Mouse reporting")),
+
+        // Tools. These ids are built by `ToolsSettingsView.highlightID(_:)`, which
+        // mirrors `SettingsTab.tools.highlightID(for:)` because that enum is file-private.
+        SettingsSearchEntry(tab: .tools, title: "Enable emoji picker", keywords: ["emoji", "smiley", "picker", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Enable emoji picker")),
+        SettingsSearchEntry(tab: .tools, title: "Enable the action ring", keywords: ["ring", "radial", "actions", "pointer", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Enable the action ring")),
+        SettingsSearchEntry(tab: .tools, title: "Enable window snapping", keywords: ["snap", "window", "tile", "halves", "quarters", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Enable window snapping")),
+        SettingsSearchEntry(tab: .tools, title: "Enable text recognition", keywords: ["ocr", "text", "recognition", "vision", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Enable text recognition")),
+        SettingsSearchEntry(tab: .tools, title: "Keep line breaks", keywords: ["ocr", "lines", "paragraphs", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Keep line breaks")),
+        SettingsSearchEntry(tab: .tools, title: "Open the result in a text editor", keywords: ["ocr", "editor", "text", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Open the result in a text editor")),
     ]
 
     /// Which segment of the Lock Screen tab a search result lives on, or nil
@@ -1089,6 +1102,11 @@ struct SettingsView: View {
         case .shelf:
             SettingsForm(tab: .shelf) {
                 Shelf()
+                BasketSettingsSection()
+            }
+        case .tools:
+            SettingsForm(tab: .tools) {
+                ToolsSettingsView()
             }
         case .shortcuts:
             SettingsForm(tab: .shortcuts) {
@@ -7111,6 +7129,34 @@ struct Shortcuts: View {
     @Default(.enableStatsFeature) var enableStatsFeature
     @Default(.enableColorPickerFeature) var enableColorPickerFeature
     @Default(.enableCaffeinate) var enableCaffeinateFeature
+    @Default(.enableBasket) var enableBasket
+    @Default(.enableEmojiPicker) var enableEmojiPicker
+    @Default(.enableRingActions) var enableRingActions
+    @Default(.enableWindowSnap) var enableWindowSnap
+
+    /// Every snap position, so the recorder list here and the shortcuts the app
+    /// registers cannot drift apart.
+    private struct SnapShortcut: Identifiable {
+        let name: KeyboardShortcuts.Name
+        let position: SnapPosition
+        var id: String { name.rawValue }
+        /// Named through the position itself, so the Shortcuts page, the ring and
+        /// whatever else names a snap position all read the same way.
+        var label: String { position.title }
+    }
+
+    private static let snapShortcuts: [SnapShortcut] = [
+        SnapShortcut(name: .snapLeft, position: .leftHalf),
+        SnapShortcut(name: .snapRight, position: .rightHalf),
+        SnapShortcut(name: .snapTop, position: .topHalf),
+        SnapShortcut(name: .snapBottom, position: .bottomHalf),
+        SnapShortcut(name: .snapTopLeft, position: .topLeft),
+        SnapShortcut(name: .snapTopRight, position: .topRight),
+        SnapShortcut(name: .snapBottomLeft, position: .bottomLeft),
+        SnapShortcut(name: .snapBottomRight, position: .bottomRight),
+        SnapShortcut(name: .snapMaximize, position: .maximize),
+        SnapShortcut(name: .snapCenter, position: .center),
+    ]
 
     private func highlightID(_ title: String) -> String {
         SettingsTab.shortcuts.highlightID(for: title)
@@ -7293,6 +7339,58 @@ struct Shortcuts: View {
                     Text("Color Picker")
                 } footer: {
                     Text("Opens the color picker panel for screen color capture. Default is Cmd+Shift+P. Only works when color picker feature is enabled.")
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                Section {
+                    KeyboardShortcuts.Recorder("Basket:", name: .toggleBasket)
+                        .disabled(!enableShortcuts || !enableBasket)
+                } header: {
+                    Text("Basket")
+                } footer: {
+                    Text("Puts a floating tray at the pointer, or closes the front one. Default is Ctrl+Option+B. Only works when the Basket is enabled.")
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                Section {
+                    KeyboardShortcuts.Recorder("Emoji Picker:", name: .emojiPicker)
+                        .disabled(!enableShortcuts || !enableEmojiPicker)
+                } header: {
+                    Text("Emoji")
+                } footer: {
+                    Text("Opens the emoji panel, which types the chosen emoji into the app you were using. Default is Cmd+Shift+E.")
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                Section {
+                    KeyboardShortcuts.Recorder("Action Ring:", name: .ringActions)
+                        .disabled(!enableShortcuts || !enableRingActions)
+                } header: {
+                    Text("Action Ring")
+                } footer: {
+                    Text("Opens the ring of actions around the pointer. Default is Ctrl+Option+R.")
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Self.snapShortcuts) { entry in
+                            KeyboardShortcuts.Recorder("\(entry.label):", name: entry.name)
+                                .disabled(!enableShortcuts || !enableWindowSnap)
+                        }
+                    }
+                } header: {
+                    Text("Window Snap")
+                } footer: {
+                    Text("Moves and resizes the focused window. Requires Accessibility permission. Off unless you keep the shortcuts you want.")
                         .multilineTextAlignment(.trailing)
                         .foregroundStyle(.secondary)
                         .font(.caption)
@@ -9163,12 +9261,12 @@ struct SettingsPermissionCallout: View {
     let openSettingsAction: () -> Void
 
     init(
-        title: String = "Accessibility permission required",
+        title: String = String(localized: "Accessibility permission required"),
         message: String,
         icon: String = "exclamationmark.triangle.fill",
         iconColor: Color = .orange,
-        requestButtonTitle: String = "Request Access",
-        openSettingsButtonTitle: String = "Open Settings",
+        requestButtonTitle: String = String(localized: "Request Access"),
+        openSettingsButtonTitle: String = String(localized: "Open Settings"),
         requestAction: @escaping () -> Void,
         openSettingsAction: @escaping () -> Void
     ) {

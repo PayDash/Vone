@@ -24,17 +24,22 @@ import SwiftUI
 
 // MARK: - Settings types
 
-/// How a floating basket is summoned while a drag is in progress.
+/// How a floating basket is summoned.
+///
+/// `shortcut` deliberately does not respond to dragging at all -- some people
+/// want the tray out of the way until they ask for it.
 enum BasketRevealMode: String, CaseIterable, Defaults.Serializable, Identifiable {
     case shake
     case instant
+    case shortcut
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .shake: return "Shake while dragging"
-        case .instant: return "As soon as a drag starts"
+        case .shake: return String(localized: "Shake while dragging")
+        case .instant: return String(localized: "As soon as a drag starts")
+        case .shortcut: return String(localized: "Only from the shortcut")
         }
     }
 }
@@ -50,10 +55,10 @@ enum BasketShakeSensitivity: String, CaseIterable, Defaults.Serializable, Identi
 
     var title: String {
         switch self {
-        case .low: return "Low"
-        case .medium: return "Medium"
-        case .high: return "High"
-        case .veryHigh: return "Very high"
+        case .low: return String(localized: "Low")
+        case .medium: return String(localized: "Medium")
+        case .high: return String(localized: "High")
+        case .veryHigh: return String(localized: "Very high")
         }
     }
 
@@ -84,6 +89,14 @@ extension Defaults.Keys {
     static let basketShakeSensitivity = Key<BasketShakeSensitivity>("basketShakeSensitivity", default: .medium)
     static let basketAllowsMultiple = Key<Bool>("basketAllowsMultiple", default: false)
     static let basketDismissesWhenEmptied = Key<Bool>("basketDismissesWhenEmptied", default: true)
+    /// Keeps the tray under the pointer while it is on screen.
+    static let basketFollowsCursor = Key<Bool>("basketFollowsCursor", default: true)
+    /// Seconds between the reveal trigger and the tray appearing. Non-zero keeps
+    /// an accidental shake from flashing a tray on screen.
+    static let basketAppearDelay = Key<Double>("basketAppearDelay", default: 0)
+    /// Seconds an empty tray waits after a drag ends before it closes itself.
+    /// Zero leaves it on screen until it is closed by hand.
+    static let basketHideDelay = Key<Double>("basketHideDelay", default: 1.5)
 }
 
 // MARK: - Model
@@ -95,15 +108,88 @@ struct Basket: Identifiable {
     var items: [TrayDrop.DropItem]
 }
 
+// MARK: - Shake detection
+
+/// Counts horizontal direction reversals inside a short window. Walking the
+/// pointer back and forth a few times is a deliberate signal; normal dragging
+/// rarely reverses this often.
+///
+/// This is the only part of the tray's reveal logic that is not event plumbing,
+/// so it is kept as plain value logic that can be driven from a test instead of
+/// from a real mouse.
+struct BasketShakeTracker {
+    /// Minimum horizontal travel, in points, before a swing counts.
+    static let minimumStep: CGFloat = 0.5
+
+    private var lastX: CGFloat?
+    private var lastDirection: Int = 0
+    private var travelSinceFlip: CGFloat = 0
+    private var reversals = 0
+    private var lastFlipTime: TimeInterval = 0
+
+    mutating func reset() {
+        lastX = nil
+        lastDirection = 0
+        travelSinceFlip = 0
+        reversals = 0
+        lastFlipTime = 0
+    }
+
+    /// Feeds one pointer position in, and answers whether a deliberate shake has
+    /// just completed. Resets itself when it has, so the caller does not have to.
+    mutating func register(
+        x: CGFloat,
+        at time: TimeInterval,
+        sensitivity: BasketShakeSensitivity,
+        window: TimeInterval = 0.6
+    ) -> Bool {
+        guard let previousX = lastX else {
+            lastX = x
+            return false
+        }
+
+        lastX = x
+        let dx = x - previousX
+        guard abs(dx) >= Self.minimumStep else { return false }
+
+        // A pause between swings ends the streak before this swing is counted, so
+        // a few slow wiggles spread over several seconds never add up to a shake.
+        if time - lastFlipTime > window {
+            reversals = 0
+        }
+
+        let direction = dx > 0 ? 1 : -1
+
+        if direction == lastDirection {
+            travelSinceFlip += abs(dx)
+        } else {
+            if travelSinceFlip >= sensitivity.minimumTravel {
+                reversals += 1
+                lastFlipTime = time
+            }
+            lastDirection = direction
+            travelSinceFlip = abs(dx)
+        }
+
+        guard reversals >= sensitivity.reversalsRequired else { return false }
+        reset()
+        return true
+    }
+}
+
 // MARK: - Manager
 
 /// Presents floating trays next to the pointer. A tray is revealed by shaking the
-/// pointer during a drag (or immediately, depending on preference) so a half-finished
-/// pile of files has somewhere to wait that is not the top of the screen.
+/// pointer during a drag (or immediately, depending on preference) so a
+/// half-finished pile of files has somewhere to wait that is not the top of the
+/// screen.
 final class BasketManager: ObservableObject {
     static let shared = BasketManager()
 
     @Published private(set) var baskets: [Basket] = []
+    /// The tray the shortcut, the switcher and outside-click tidying treat as
+    /// "the" basket.
+    @Published private(set) var activeBasketID: UUID?
 
     private var panels: [UUID: NSPanel] = [:]
     private var monitors: [Any] = []
@@ -111,16 +197,17 @@ final class BasketManager: ObservableObject {
     // Drag + shake tracking. All of this is main-thread only, because NSEvent
     // monitors deliver on the main run loop.
     private var isDragging = false
-    private var lastDragX: CGFloat?
-    private var lastDirection: Int = 0
-    private var travelSinceFlip: CGFloat = 0
-    private var reversals = 0
-    private var lastFlipTime: TimeInterval = 0
+    private var shakeTracker = BasketShakeTracker()
     private var lastRevealTime: TimeInterval = 0
+    private var lastFollowTime: TimeInterval = 0
+
+    private var revealWork: DispatchWorkItem?
+    private var emptyCloseWork: DispatchWorkItem?
 
     private static let shakeWindow: TimeInterval = 0.6
     private static let revealCooldown: TimeInterval = 0.7
-    static let panelSize = CGSize(width: 248, height: 196)
+    private static let followInterval: TimeInterval = 1.0 / 60.0
+    static let panelSize = CGSize(width: 248, height: 276)
 
     private init() {}
 
@@ -129,42 +216,89 @@ final class BasketManager: ObservableObject {
     func start() {
         guard monitors.isEmpty else { return }
 
-        let mask: NSEvent.EventTypeMask = [
+        let dragMask: NSEvent.EventTypeMask = [
             .leftMouseDragged, .rightMouseDragged, .otherMouseDragged,
             .leftMouseUp, .rightMouseUp,
         ]
 
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: { [weak self] event in
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: dragMask, handler: { [weak self] event in
             self?.handle(event)
         }) {
             monitors.append(global)
         }
 
-        if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { [weak self] event in
+        if let local = NSEvent.addLocalMonitorForEvents(matching: dragMask, handler: { [weak self] event in
             self?.handle(event)
             return event
         }) {
             monitors.append(local)
+        }
+
+        // Clicking anywhere outside the trays tidies away the empty ones. A tray
+        // holding files is left alone: closing it would throw the pile away, and
+        // it is still there waiting to be used.
+        if let outsideClicks = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown],
+            handler: { [weak self] _ in
+                // `NSEvent.mouseLocation` is the reliable screen coordinate for a
+                // global monitor; the window-relative one is not usable here.
+                self?.handleOutsideClick(at: NSEvent.mouseLocation)
+            }
+        ) {
+            monitors.append(outsideClicks)
+        }
+
+        // Local monitors only see keys once a Vone panel is key, which is why the
+        // trays take key focus when they appear.
+        if let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown, handler: { [weak self] event in
+            guard event.keyCode == 53, let self, !self.baskets.isEmpty else { return event }
+            self.dismissFrontmostBasket()
+            return nil
+        }) {
+            monitors.append(escape)
         }
     }
 
     func stop() {
         monitors.forEach { NSEvent.removeMonitor($0) }
         monitors.removeAll()
+        revealWork?.cancel()
+        emptyCloseWork?.cancel()
         closeAll()
     }
 
     // MARK: Presentation
 
-    /// Reveals a tray next to `screenPoint` (AppKit screen coordinates).
+    /// Reveals a tray next to `screenPoint` (AppKit screen coordinates), after the
+    /// configured appear delay.
     func reveal(at screenPoint: CGPoint) {
+        revealWork?.cancel()
+
+        let delay = max(0, Defaults[.basketAppearDelay])
+        guard delay > 0 else {
+            performReveal(at: screenPoint)
+            return
+        }
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.performReveal(at: screenPoint)
+        }
+        revealWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func performReveal(at screenPoint: CGPoint) {
+        guard Defaults[.enableBasket] else { return }
+
         let now = ProcessInfo.processInfo.systemUptime
         guard now - lastRevealTime > Self.revealCooldown else { return }
         lastRevealTime = now
 
+        emptyCloseWork?.cancel()
+
         if !Defaults[.basketAllowsMultiple], let existing = baskets.first {
             positionPanel(for: existing.id, at: screenPoint)
-            feedback()
+            activate(basketID: existing.id)
             return
         }
 
@@ -172,6 +306,25 @@ final class BasketManager: ObservableObject {
         baskets.append(basket)
         createPanel(for: basket.id)
         positionPanel(for: basket.id, at: screenPoint)
+        activate(basketID: basket.id)
+    }
+
+    /// Shows a tray at the pointer, or closes the front one when a tray is
+    /// already open. This is what the keyboard shortcut does, and it is also the
+    /// only way to summon a tray while `BasketRevealMode.shortcut` is selected.
+    func toggle() {
+        if baskets.isEmpty {
+            reveal(at: NSEvent.mouseLocation)
+        } else {
+            dismissFrontmostBasket()
+        }
+    }
+
+    /// Brings a tray to the front and makes it the one the keyboard acts on.
+    func activate(basketID: UUID) {
+        guard let panel = panels[basketID] else { return }
+        activeBasketID = basketID
+        panel.makeKeyAndOrderFront(nil)
         feedback()
     }
 
@@ -179,12 +332,23 @@ final class BasketManager: ObservableObject {
         panels[basketID]?.orderOut(nil)
         panels[basketID] = nil
         baskets.removeAll { $0.id == basketID }
+
+        if activeBasketID == basketID {
+            activeBasketID = baskets.last?.id
+        }
     }
 
     func closeAll() {
         panels.values.forEach { $0.orderOut(nil) }
         panels.removeAll()
         baskets.removeAll()
+        activeBasketID = nil
+    }
+
+    /// Closes the frontmost tray, which is what Escape does.
+    private func dismissFrontmostBasket() {
+        guard let id = activeBasketID ?? baskets.first?.id else { return }
+        close(basketID: id)
     }
 
     // MARK: Items
@@ -198,6 +362,7 @@ final class BasketManager: ObservableObject {
             DispatchQueue.main.async {
                 guard let index = self.baskets.firstIndex(where: { $0.id == basketID }) else { return }
                 loaded.reversed().forEach { self.baskets[index].items.insert($0, at: 0) }
+                self.emptyCloseWork?.cancel()
             }
         }
     }
@@ -205,6 +370,10 @@ final class BasketManager: ObservableObject {
     func remove(_ item: TrayDrop.DropItem, from basketID: UUID) {
         guard let index = baskets.firstIndex(where: { $0.id == basketID }) else { return }
         baskets[index].items.removeAll { $0.id == item.id }
+
+        if baskets[index].items.isEmpty, Defaults[.basketDismissesWhenEmptied] {
+            close(basketID: basketID)
+        }
     }
 
     func clear(basketID: UUID) {
@@ -219,9 +388,12 @@ final class BasketManager: ObservableObject {
     func sendToShelf(basketID: UUID) {
         guard let basket = baskets.first(where: { $0.id == basketID }) else { return }
         let items = basket.items
+        guard !items.isEmpty else { return }
+
         DispatchQueue.main.async {
             items.reversed().forEach { TrayDrop.shared.items.updateOrInsert($0, at: 0) }
         }
+
         guard let index = baskets.firstIndex(where: { $0.id == basketID }) else { return }
         baskets[index].items.removeAll()
         close(basketID: basketID)
@@ -238,6 +410,8 @@ final class BasketManager: ObservableObject {
             if !isDragging {
                 isDragging = true
                 resetShakeState()
+                emptyCloseWork?.cancel()
+
                 if Defaults[.basketRevealMode] == .instant {
                     reveal(at: NSEvent.mouseLocation)
                 }
@@ -247,55 +421,65 @@ final class BasketManager: ObservableObject {
                 processShake(at: NSEvent.mouseLocation, time: now)
             }
 
+            followPointerIfNeeded(at: NSEvent.mouseLocation, time: now)
+
         default:
             isDragging = false
             resetShakeState()
+            // A shake that starts a reveal but releases before the appear delay
+            // elapses should not leave a tray behind.
+            revealWork?.cancel()
+            scheduleEmptyBasketClose()
         }
     }
 
     private func resetShakeState() {
-        lastDragX = nil
-        lastDirection = 0
-        travelSinceFlip = 0
-        reversals = 0
-        lastFlipTime = 0
+        shakeTracker.reset()
     }
 
-    /// Counts horizontal direction reversals inside a short window. Walking the
-    /// pointer back and forth a few times is a deliberate signal; normal dragging
-    /// rarely reverses this often.
     private func processShake(at point: CGPoint, time: TimeInterval) {
-        guard let previousX = lastDragX else {
-            lastDragX = point.x
-            return
-        }
-
-        let dx = point.x - previousX
-        lastDragX = point.x
-
-        let sensitivity = Defaults[.basketShakeSensitivity]
-        guard abs(dx) >= 0.5 else { return }
-
-        let direction = dx > 0 ? 1 : -1
-
-        if direction == lastDirection {
-            travelSinceFlip += abs(dx)
-        } else {
-            if travelSinceFlip >= sensitivity.minimumTravel {
-                reversals += 1
-                lastFlipTime = time
-            }
-            lastDirection = direction
-            travelSinceFlip = abs(dx)
-        }
-
-        if time - lastFlipTime > Self.shakeWindow {
-            reversals = 0
-        }
-
-        if reversals >= sensitivity.reversalsRequired {
-            resetShakeState()
+        let shaken = shakeTracker.register(
+            x: point.x,
+            at: time,
+            sensitivity: Defaults[.basketShakeSensitivity],
+            window: Self.shakeWindow
+        )
+        if shaken {
             reveal(at: point)
+        }
+    }
+
+    /// Keeps a lone tray under the pointer. With several trays on screen the
+    /// pointer cannot mean all of them, so they are left where they were placed.
+    private func followPointerIfNeeded(at point: CGPoint, time: TimeInterval) {
+        guard Defaults[.basketFollowsCursor], baskets.count == 1 else { return }
+        guard time - lastFollowTime > Self.followInterval else { return }
+        lastFollowTime = time
+        positionPanel(for: baskets[0].id, at: point)
+    }
+
+    /// Tidies away trays that are still empty once a drag has finished, so a
+    /// reveal that missed does not leave an empty panel on screen.
+    private func scheduleEmptyBasketClose() {
+        let delay = Defaults[.basketHideDelay]
+        guard delay > 0 else { return }
+
+        emptyCloseWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            for basket in self.baskets where basket.items.isEmpty {
+                self.close(basketID: basket.id)
+            }
+        }
+        emptyCloseWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func handleOutsideClick(at point: CGPoint) {
+        for basket in baskets where basket.items.isEmpty {
+            guard let frame = panels[basket.id]?.frame else { continue }
+            if frame.contains(point) { continue }
+            close(basketID: basket.id)
         }
     }
 
@@ -313,10 +497,13 @@ final class BasketManager: ObservableObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true
-        panel.level = .floating
+        // .screenSaver matches the clipboard panel: a tray that is already on
+        // screen when a full-screen app is in front still needs to be reachable.
+        panel.level = .screenSaver
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         panel.ignoresMouseEvents = false
-        panel.becomesKeyOnlyIfNeeded = true
+        panel.becomesKeyOnlyIfNeeded = false
+        panel.hidesOnDeactivate = false
         panel.isMovableByWindowBackground = true
         panel.contentView = NSHostingView(rootView: BasketView(basketID: id))
 

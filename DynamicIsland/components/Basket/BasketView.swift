@@ -28,6 +28,7 @@ struct BasketView: View {
 
     @ObservedObject private var manager = BasketManager.shared
     @State private var isTargeted = false
+    @State private var hoveredItemID: UUID?
 
     private var basket: Basket? {
         manager.baskets.first { $0.id == basketID }
@@ -37,11 +38,20 @@ struct BasketView: View {
         basket?.items ?? []
     }
 
+    /// 1-based number of this tray, used when more than one is open.
+    private var basketNumber: Int {
+        (manager.baskets.firstIndex { $0.id == basketID } ?? 0) + 1
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             header
             separator
             content
+            QuickActionsStrip(items: items) { consumed in
+                consumed.forEach { manager.remove($0, from: basketID) }
+            }
+            separator
             footer
         }
         .padding(10)
@@ -72,10 +82,15 @@ struct BasketView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
 
-            Text("Basket")
+            Text(manager.baskets.count > 1 ? "Basket \(basketNumber)" : "Basket")
                 .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
 
             Spacer(minLength: 0)
+
+            if manager.baskets.count > 1 {
+                switcher
+            }
 
             if !items.isEmpty {
                 Text("\(items.count)")
@@ -89,11 +104,42 @@ struct BasketView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 10, weight: .bold))
+                    .frame(width: 18, height: 18)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help("Close basket")
         }
+    }
+
+    /// Lets one tray hand the active marker to another, which is otherwise only
+    /// reachable by clicking the tray you want.
+    private var switcher: some View {
+        Menu {
+            ForEach(Array(manager.baskets.enumerated()), id: \.element.id) { index, basket in
+                Button {
+                    manager.activate(basketID: basket.id)
+                } label: {
+                    let title = "Basket \(index + 1) · \(basket.items.count)"
+                    if basket.id == manager.activeBasketID {
+                        Label(title, systemImage: "checkmark")
+                    } else {
+                        Text(title)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "square.stack.3d.up")
+                .font(.system(size: 10, weight: .semibold))
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(.secondary)
+        .help("Switch basket")
     }
 
     private var separator: some View {
@@ -107,12 +153,13 @@ struct BasketView: View {
         if items.isEmpty {
             emptyState
         } else {
-            ScrollView(.vertical, showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: true) {
                 VStack(spacing: 4) {
                     ForEach(items, id: \.id) { item in
                         row(for: item)
                     }
                 }
+                .padding(.trailing, 2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
@@ -132,7 +179,9 @@ struct BasketView: View {
     }
 
     private func row(for item: TrayDrop.DropItem) -> some View {
-        HStack(spacing: 8) {
+        let isHovered = hoveredItemID == item.id
+
+        return HStack(spacing: 8) {
             Image(nsImage: item.workspacePreviewImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
@@ -157,43 +206,54 @@ struct BasketView: View {
             } label: {
                 Image(systemName: "minus.circle")
                     .font(.system(size: 11))
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
+            .opacity(isHovered ? 1 : 0)
             .help("Remove from basket")
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.white.opacity(isHovered ? 0.10 : 0.06))
         )
         .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                hoveredItemID = hovering ? item.id : (hoveredItemID == item.id ? nil : hoveredItemID)
+            }
+        }
         .onDrag {
             NSItemProvider(contentsOf: item.storageURL) ?? NSItemProvider()
+        }
+        .onTapGesture(count: 2) {
+            NSWorkspace.shared.open(item.storageURL)
         }
         .help(item.fileName)
     }
 
     private var footer: some View {
         HStack(spacing: 8) {
-            Button("Send to Shelf") {
+            BasketFooterButton(
+                title: String(localized: "Send to Shelf"),
+                isEnabled: !items.isEmpty,
+                tint: .accentColor
+            ) {
                 manager.sendToShelf(basketID: basketID)
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 10, weight: .medium))
-            .disabled(items.isEmpty)
-            .foregroundStyle(items.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.accentColor))
 
             Spacer(minLength: 0)
 
-            Button("Clear") {
+            BasketFooterButton(
+                title: String(localized: "Clear"),
+                isEnabled: !items.isEmpty,
+                tint: .secondary
+            ) {
                 manager.clear(basketID: basketID)
             }
-            .buttonStyle(.plain)
-            .font(.system(size: 10, weight: .medium))
-            .disabled(items.isEmpty)
-            .foregroundStyle(items.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
         }
     }
 
@@ -203,6 +263,44 @@ struct BasketView: View {
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         return formatter
     }()
+}
+
+// MARK: - Footer button
+
+/// A small text button that reads as clickable: the label lightens and a wash
+/// appears behind it on hover, and nothing happens at all when it is disabled.
+private struct BasketFooterButton: View {
+    let title: String
+    let isEnabled: Bool
+    let tint: Color
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.white.opacity(isHovering && isEnabled ? 0.10 : 0))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .foregroundStyle(foregroundStyle)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) { isHovering = hovering }
+        }
+    }
+
+    private var foregroundStyle: AnyShapeStyle {
+        guard isEnabled else { return AnyShapeStyle(.tertiary) }
+        return AnyShapeStyle(tint)
+    }
 }
 
 #endif

@@ -936,6 +936,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }.store(in: &cancellables)
 
+        // The pointer tools are toggled from their own settings page, so their
+        // shortcuts have to be claimed and released from there too rather than at
+        // the next launch. Their handlers check the same defaults before acting,
+        // so this decides whether the key is claimed, not whether it works.
+        Defaults.publisher(.enableBasket, options: []).sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFeatureShortcutAvailability()
+            }
+        }.store(in: &cancellables)
+
+        Defaults.publisher(.enableEmojiPicker, options: []).sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFeatureShortcutAvailability()
+            }
+        }.store(in: &cancellables)
+
+        Defaults.publisher(.enableRingActions, options: []).sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFeatureShortcutAvailability()
+            }
+        }.store(in: &cancellables)
+
+        Defaults.publisher(.enableWindowSnap, options: []).sink { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateFeatureShortcutAvailability()
+            }
+        }.store(in: &cancellables)
+
         // The hide option changes fullscreen visibility, not Spaces pinning.
         // Re-sync in case the user changes it while macOS is moving Spaces.
         Defaults.publisher(.hideNotchOption, options: []).sink { [weak self] _ in
@@ -1526,6 +1554,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+
+        KeyboardShortcuts.onKeyDown(for: .emojiPicker) {
+            guard Defaults[.enableShortcuts], Defaults[.enableEmojiPicker] else { return }
+            EmojiPickerManager.shared.toggle()
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .ringActions) {
+            guard Defaults[.enableShortcuts], Defaults[.enableRingActions] else { return }
+            RingActionManager.shared.toggle()
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .toggleBasket) {
+            guard Defaults[.enableShortcuts], Defaults[.enableBasket] else { return }
+            BasketManager.shared.toggle()
+        }
+
+        KeyboardShortcuts.onKeyDown(for: .snapLeft) { WindowSnapManager.snap(.leftHalf) }
+        KeyboardShortcuts.onKeyDown(for: .snapRight) { WindowSnapManager.snap(.rightHalf) }
+        KeyboardShortcuts.onKeyDown(for: .snapTop) { WindowSnapManager.snap(.topHalf) }
+        KeyboardShortcuts.onKeyDown(for: .snapBottom) { WindowSnapManager.snap(.bottomHalf) }
+        KeyboardShortcuts.onKeyDown(for: .snapTopLeft) { WindowSnapManager.snap(.topLeft) }
+        KeyboardShortcuts.onKeyDown(for: .snapTopRight) { WindowSnapManager.snap(.topRight) }
+        KeyboardShortcuts.onKeyDown(for: .snapBottomLeft) { WindowSnapManager.snap(.bottomLeft) }
+        KeyboardShortcuts.onKeyDown(for: .snapBottomRight) { WindowSnapManager.snap(.bottomRight) }
+        KeyboardShortcuts.onKeyDown(for: .snapMaximize) { WindowSnapManager.snap(.maximize) }
+        KeyboardShortcuts.onKeyDown(for: .snapCenter) { WindowSnapManager.snap(.center) }
     }
 
     @MainActor
@@ -1536,6 +1590,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         updateShortcut(.screenAssistantPanel, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableScreenAssistant])
         updateShortcut(.toggleTerminalTab, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableTerminalFeature])
         updateShortcut(.toggleCaffeinate, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableCaffeinate])
+        updateShortcut(.emojiPicker, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableEmojiPicker])
+        updateShortcut(.ringActions, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableRingActions])
+        updateShortcut(.snapLeft, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapRight, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapTop, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapBottom, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapMaximize, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapTopLeft, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapTopRight, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapBottomLeft, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapBottomRight, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.snapCenter, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableWindowSnap])
+        updateShortcut(.toggleBasket, isEnabled: Defaults[.enableShortcuts] && Defaults[.enableBasket])
     }
 
     @MainActor
