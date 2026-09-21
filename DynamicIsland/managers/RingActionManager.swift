@@ -194,6 +194,14 @@ final class RingActionManager: ObservableObject {
 struct RingActionView: View {
     @ObservedObject private var manager = RingActionManager.shared
     @State private var hoveredID: String?
+    @State private var pressedID: String?
+
+    /// A tile's own frame. The release point arrives in the tile's coordinate
+    /// space, so this is what tells a release on the tile from one that slid off
+    /// it — and it is the same size the tile is laid out at, so the two cannot
+    /// drift apart.
+    private static let tileSize = CGSize(width: 52, height: 44)
+    private static let tileBounds = CGRect(origin: .zero, size: tileSize)
 
     var body: some View {
         ZStack {
@@ -219,32 +227,52 @@ struct RingActionView: View {
         .frame(width: RingActionManager.panelSize.width, height: RingActionManager.panelSize.height)
     }
 
+    /// A sector is chosen by holding it and letting go, the way a pie menu
+    /// works, rather than by a click landing on it.
+    ///
+    /// The difference is what a mis-aim costs. A click fires the moment the
+    /// button goes down, so a press that rolled off the sector you meant has
+    /// already opened the emoji picker or started a screen capture; here nothing
+    /// happens until the button comes up, and if it comes up anywhere but on the
+    /// sector it was pressed on, the ring stays where it is and you try again.
+    /// Press and release without moving still selects, so the ordinary click
+    /// keeps working.
     private func tile(_ action: RingAction) -> some View {
-        let isHovered = hoveredID == action.id
+        let isHighlighted = hoveredID == action.id || pressedID == action.id
 
-        return Button {
-            manager.perform(action)
-        } label: {
-            VStack(spacing: 2) {
-                Image(systemName: action.systemImage)
-                    .font(.system(size: 14, weight: .medium))
-                Text(action.title)
-                    .font(.system(size: 8, weight: .medium))
-                    .lineLimit(1)
-            }
-            .frame(width: 52, height: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(isHovered ? Color.accentColor.opacity(0.28) : Color.black.opacity(0.35))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(isHovered ? Color.accentColor : Color.white.opacity(0.12), lineWidth: 1)
-            )
-            .contentShape(Rectangle())
+        return VStack(spacing: 2) {
+            Image(systemName: action.systemImage)
+                .font(.system(size: 14, weight: .medium))
+            Text(action.title)
+                .font(.system(size: 8, weight: .medium))
+                .lineLimit(1)
         }
-        .buttonStyle(.plain)
+        .frame(width: Self.tileSize.width, height: Self.tileSize.height)
+        .background(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .fill(isHighlighted ? Color.accentColor.opacity(0.28) : Color.black.opacity(0.35))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                .strokeBorder(isHighlighted ? Color.accentColor : Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    pressedID = action.id
+                    hoveredID = action.id
+                }
+                .onEnded { value in
+                    pressedID = nil
+                    guard Self.tileBounds.contains(value.location) else { return }
+                    manager.perform(action)
+                }
+        )
         .onHover { hoveredID = $0 ? action.id : (hoveredID == action.id ? nil : hoveredID) }
+        .accessibilityElement()
+        .accessibilityLabel(action.title)
+        .accessibilityAddTraits(.isButton)
         .help(action.title)
     }
 

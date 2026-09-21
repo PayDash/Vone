@@ -433,6 +433,12 @@ class DynamicIslandViewModel: NSObject, ObservableObject {
             isHomeTabActive: coordinator.currentView == .home
         )
 
+        adjustedSize = shelfAdjustedNotchSize(
+            from: adjustedSize,
+            isShelfTabActive: coordinator.currentView == .shelf,
+            showsActionTiles: !ShelfStateViewModel.shared.isEmpty
+        )
+
         return statsAdjustedNotchSize(
             from: adjustedSize,
             isStatsTabActive: coordinator.currentView == .stats,

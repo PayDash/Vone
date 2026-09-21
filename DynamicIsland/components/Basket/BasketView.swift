@@ -48,8 +48,13 @@ struct BasketView: View {
             header
             separator
             content
-            QuickActionsStrip(items: items) { consumed in
-                consumed.forEach { manager.remove($0, from: basketID) }
+            QuickActionsStrip(urls: items.fileURLs) { consumed in
+                // A consuming tile takes everything it was handed, and the tray
+                // hands it the whole pile, so those items leave the tray.
+                let consumedURLs = Set(consumed)
+                items
+                    .filter { consumedURLs.contains($0.storageURL) }
+                    .forEach { manager.remove($0, from: basketID) }
             }
             separator
             footer

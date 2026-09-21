@@ -57,6 +57,10 @@ struct ShelfView: View {
     @StateObject private var quickLookService = QuickLookService()
     @State private var autoCloseToken = UUID()
     @State private var viewportSize: CGSize = .zero
+    /// A shelf item holds a bookmark, not a URL, so its file is resolved here
+    /// once and kept — the Quick Action tiles need URLs to test content types
+    /// against and to hand to the action.
+    @State private var fileURLs: [ShelfItem.ID: URL] = [:]
     private let spacing: CGFloat = 8
 
     var body: some View {
@@ -162,50 +166,98 @@ struct ShelfView: View {
                         .fontWeight(.medium)
                 }
             } else {
-                ScrollView(.horizontal) {
-                    HStack(spacing: spacing) {
-                        ForEach(tvm.items) { item in
-                            ShelfItemView(item: item)
-                                .environmentObject(quickLookService)
-                        }
-                    }
-                    // Stretch the content to at least the viewport so the
-                    // marquee overlay also covers the gap right of the last item
-                    // — that gap is where a rubber-band selection usually starts.
-                    .frame(
-                        minWidth: viewportSize.width,
-                        minHeight: viewportSize.height,
-                        alignment: .leading
+                VStack(spacing: 6) {
+                    shelfItems
+
+                    // The same tiles a Basket carries, acting on the shelf.
+                    // Titles stay off: a tile with a label costs 52pt where the
+                    // notch can spare 36, and the glyphs carry their own
+                    // tooltips.
+                    QuickActionsStrip(
+                        urls: actionURLs,
+                        onConsume: { consumed in
+                            let consumedURLs = Set(consumed)
+                            tvm.items
+                                .filter { item in
+                                    guard let url = fileURLs[item.id] else { return false }
+                                    return consumedURLs.contains(url)
+                                }
+                                .forEach { ShelfStateViewModel.shared.remove($0) }
+                        },
+                        showsTitles: false
                     )
-                    .overlay {
-                        ShelfMarqueeSelectionView(
-                            onBackgroundClick: {
-                                guard !selection.isDragging else { return }
-                                selection.clear()
-                            },
-                            onActiveChange: { active in
-                                vm.setAutoCloseSuppression(active, token: autoCloseToken)
-                            }
-                        )
-                    }
-                }
-                .padding(-spacing)
-                .scrollIndicators(.never)
-                // Measures the ScrollView itself (the viewport), not its
-                // content, so this only fires when the panel resizes.
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(key: ShelfViewportSizeKey.self, value: proxy.size)
-                    }
-                )
-                .onPreferenceChange(ShelfViewportSizeKey.self) { viewportSize = $0 }
-                .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
-                    handleDrop(providers: providers)
                 }
             }
         }
         .onAppear {
             ShelfStateViewModel.shared.cleanupInvalidItems()
+            refreshActionURLs()
+        }
+        .onChange(of: tvm.items) { _, _ in refreshActionURLs() }
+    }
+
+    /// The shelf's items, with the marquee selection laid over the empty space.
+    private var shelfItems: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: spacing) {
+                ForEach(tvm.items) { item in
+                    ShelfItemView(item: item)
+                        .environmentObject(quickLookService)
+                }
+            }
+            // Stretch the content to at least the viewport so the marquee
+            // overlay also covers the gap right of the last item — that gap is
+            // where a rubber-band selection usually starts.
+            .frame(
+                minWidth: viewportSize.width,
+                minHeight: viewportSize.height,
+                alignment: .leading
+            )
+            .overlay {
+                ShelfMarqueeSelectionView(
+                    onBackgroundClick: {
+                        guard !selection.isDragging else { return }
+                        selection.clear()
+                    },
+                    onActiveChange: { active in
+                        vm.setAutoCloseSuppression(active, token: autoCloseToken)
+                    }
+                )
+            }
+        }
+        .padding(-spacing)
+        .scrollIndicators(.never)
+        // Measures the ScrollView itself (the viewport), not its content, so
+        // this only fires when the panel resizes.
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: ShelfViewportSizeKey.self, value: proxy.size)
+            }
+        )
+        .onPreferenceChange(ShelfViewportSizeKey.self) { viewportSize = $0 }
+        .onDrop(of: [.fileURL, .url, .utf8PlainText, .plainText, .data], isTargeted: $vm.dragDetectorTargeting) { providers in
+            handleDrop(providers: providers)
+        }
+    }
+
+    /// What the Quick Action tiles act on: every shelf item that resolved to a
+    /// file. Text and links have no file to send anywhere, so they are left out
+    /// rather than handed over as URLs that point at nothing.
+    private var actionURLs: [URL] {
+        tvm.items.compactMap { fileURLs[$0.id] }
+    }
+
+    /// Resolves the shelf's bookmarks off the main thread and republishes them.
+    private func refreshActionURLs() {
+        let items = tvm.items
+        Task { @MainActor in
+            var resolved: [ShelfItem.ID: URL] = [:]
+            for item in items {
+                if let url = await ShelfStateViewModel.shared.resolveFileURLAsync(for: item) {
+                    resolved[item.id] = url
+                }
+            }
+            fileURLs = resolved
         }
     }
 }

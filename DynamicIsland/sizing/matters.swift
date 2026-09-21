@@ -284,6 +284,28 @@ func inlineLyricsAdjustedNotchSize(
     return adjustedSize
 }
 
+/// Height the Quick Action tiles take under the shelf's files: the row itself
+/// (36pt) plus the gap the shelf's stack leaves above it (6pt).
+let shelfActionStripBlockHeight: CGFloat = 42
+
+/// Grows the open notch while the shelf tab is on screen, so the row of Quick
+/// Action tiles has room under the files rather than competing with them for
+/// the height the shelf already had.
+///
+/// Only the shelf asks for this, and only while it holds something: the tiles
+/// are hidden when the shelf is empty, and no other tab draws them.
+func shelfAdjustedNotchSize(
+    from baseSize: CGSize,
+    isShelfTabActive: Bool,
+    showsActionTiles: Bool
+) -> CGSize {
+    guard isShelfTabActive, showsActionTiles else { return baseSize }
+
+    var adjustedSize = baseSize
+    adjustedSize.height += shelfActionStripBlockHeight
+    return adjustedSize
+}
+
 func statsAdjustedNotchSize(
     from baseSize: CGSize,
     isStatsTabActive: Bool,

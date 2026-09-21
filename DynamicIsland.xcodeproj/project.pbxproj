@@ -22,6 +22,8 @@
 		7E61181C2E24071E0050006C /* MacroVisionKit in Frameworks */ = {isa = PBXBuildFile; productRef = 146BC4362D366E9B0047C66A /* MacroVisionKit */; };
 		7E6856482EA963FD00D261F5 /* Lock.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E6856472EA963FD00D261F5 /* Lock.json */; };
 		7E8130402E3FB40500E08F3F /* mediaremote-adapter.pl in Resources */ = {isa = PBXBuildFile; fileRef = 7E81303D2E3FB40500E08F3F /* mediaremote-adapter.pl */; };
+		C0DE10A10000000000000001 /* CHANGELOG.md in Resources */ = {isa = PBXBuildFile; fileRef = C0DE10A10000000000000002 /* CHANGELOG.md */; };
+		C0DE10A10000000000000003 /* ChangelogParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE10A10000000000000004 /* ChangelogParserTests.swift */; };
 		7E8840D72E9A346700C5CB8C /* Dog waiting.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E8840D62E9A346700C5CB8C /* Dog waiting.json */; };
 		7E8840D92E9A347000C5CB8C /* Moody Dog.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E8840D82E9A347000C5CB8C /* Moody Dog.json */; };
 		7E8840DB2E9A347800C5CB8C /* Orange Cat Peeping.json in Resources */ = {isa = PBXBuildFile; fileRef = 7E8840DA2E9A347800C5CB8C /* Orange Cat Peeping.json */; };
@@ -93,6 +95,8 @@
 		7E25ECA42E6C6E7800700E72 /* DisplayServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = DisplayServices.framework; path = /System/Library/PrivateFrameworks/DisplayServices.framework; sourceTree = "<absolute>"; };
 		7E6856472EA963FD00D261F5 /* Lock.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = Lock.json; sourceTree = "<group>"; };
 		7E81303D2E3FB40500E08F3F /* mediaremote-adapter.pl */ = {isa = PBXFileReference; lastKnownFileType = text.script.perl; path = "mediaremote-adapter.pl"; sourceTree = "<group>"; };
+		C0DE10A10000000000000002 /* CHANGELOG.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CHANGELOG.md; sourceTree = "<group>"; };
+		C0DE10A10000000000000004 /* ChangelogParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChangelogParserTests.swift; sourceTree = "<group>"; };
 		7E8840D62E9A346700C5CB8C /* Dog waiting.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Dog waiting.json"; sourceTree = "<group>"; };
 		7E8840D82E9A347000C5CB8C /* Moody Dog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Moody Dog.json"; sourceTree = "<group>"; };
 		7E8840DA2E9A347800C5CB8C /* Orange Cat Peeping.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "Orange Cat Peeping.json"; sourceTree = "<group>"; };
@@ -240,6 +244,7 @@
 				D1A2B3C4D5E6F70819AB2C4E /* SystemHUDPlacementTests.swift */,
 				B1C2D3E4F5A60718293A4BF2 /* BasketShakeTrackerTests.swift */,
 				B1C2D3E4F5A60718293A4BF4 /* WindowSnapGeometryTests.swift */,
+				C0DE10A10000000000000004 /* ChangelogParserTests.swift */,
 				E1F2A3B4C5D6E7F8A9B0C1D2 /* JSONLUsageParserTests.swift */,
 				B1C2D3E4F5061728394A5B6D /* PartialDownloadTests.swift */,
 				F6B7C8D9E0F1A2B3C4D5E6F7 /* NewAPIUsageTests.swift */,
@@ -308,6 +313,7 @@
 				7E8840D52E9A341F00C5CB8C /* LottieAnimations */,
 				7E81304F2E3FB42700E08F3F /* Frameworks */,
 				7E81303F2E3FB40500E08F3F /* mediaremote-adapter */,
+				C0DE10A10000000000000002 /* CHANGELOG.md */,
 				F54406E92CD4987A00C7AFD9 /* DynamicIsland */,
 				F54406E82CD4987A00C7AFD9 /* Products */,
 				BF9102C8771E45168EF97D18 /* DynamicIslandUITests */,
@@ -477,6 +483,7 @@
 			files = (
 				7E9918722EFDAE5B002EDFD5 /* MediaRemoteAdapter.framework in Resources */,
 				7E8130402E3FB40500E08F3F /* mediaremote-adapter.pl in Resources */,
+				C0DE10A10000000000000001 /* CHANGELOG.md in Resources */,
 				7E6856482EA963FD00D261F5 /* Lock.json in Resources */,
 				A70F1A012F90000100F1A001 /* FingerprintScan.json in Resources */,
 				7E8840D92E9A347000C5CB8C /* Moody Dog.json in Resources */,
@@ -530,6 +537,7 @@
 				D1A2B3C4D5E6F70819AB2C4D /* SystemHUDPlacementTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4BF1 /* BasketShakeTrackerTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4BF3 /* WindowSnapGeometryTests.swift in Sources */,
+				C0DE10A10000000000000003 /* ChangelogParserTests.swift in Sources */,
 				F1E2D3C4B5A6E7F8A9B0C1D2 /* JSONLUsageParserTests.swift in Sources */,
 				C0DECAFE1234567890ABCDEF /* FlyoutFrameCalculatorTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B01 /* MediaKeyTapRetryPolicyTests.swift in Sources */,

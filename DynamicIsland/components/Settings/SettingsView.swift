@@ -68,6 +68,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
     case notes
     case terminal
     case about
+    case changelog
 
     var id: String { rawValue }
 
@@ -81,9 +82,8 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .clipboard, .screenAssistant, .colorPicker, .shelf, .tools,
              .downloads, .shortcuts:                                         return .utilities
         case .stats, .terminal:                                              return .developer
-        case .extensions:                                                    return .integrations
-        case .about:                                                         return .info
-        }
+        case .extensions:                                                    return .integrations        case .about, .changelog:                                             return .info
+    }
     }
 
     var title: String {
@@ -110,6 +110,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .notes: return String(localized: "Notes")
         case .terminal: return String(localized: "Terminal")
         case .about: return String(localized: "About")
+        case .changelog: return String(localized: "Changelog")
         }
     }
 
@@ -137,6 +138,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .notes: return "note.text"
         case .terminal: return "apple.terminal"
         case .about: return "info.circle"
+        case .changelog: return "clock.arrow.circlepath"
         }
     }
 
@@ -164,6 +166,7 @@ private enum SettingsTab: String, CaseIterable, Identifiable {
         case .notes: return Color(red: 0.979, green: 0.716, blue: 0.153, opacity: 1.000)
         case .terminal: return Color(red: 0.2, green: 0.8, blue: 0.4)
         case .about: return .secondary
+        case .changelog: return .secondary
         }
     }
 
@@ -494,6 +497,8 @@ private enum SettingsSearchIndex {
         SettingsSearchEntry(tab: .tools, title: "Enable text recognition", keywords: ["ocr", "text", "recognition", "vision", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Enable text recognition")),
         SettingsSearchEntry(tab: .tools, title: "Keep line breaks", keywords: ["ocr", "lines", "paragraphs", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Keep line breaks")),
         SettingsSearchEntry(tab: .tools, title: "Open the result in a text editor", keywords: ["ocr", "editor", "text", "tools"], highlightID: SettingsTab.tools.highlightID(for: "Open the result in a text editor")),
+
+        SettingsSearchEntry(tab: .changelog, title: "Changelog", keywords: ["changelog", "change log", "what's new", "whats new", "release notes", "version history", "updates"], highlightID: nil),
     ]
 
     /// Which segment of the Lock Screen tab a search result lives on, or nil
@@ -676,7 +681,11 @@ struct SettingsView: View {
         .toolbar { toolbarSpacingShim }
         .environmentObject(highlightCoordinator)
         .formStyle(.grouped)
-        .frame(width: 700)
+        // A minimum, not a fixed width. Pinning the content to 700pt meant the
+        // sidebar and detail stayed 700pt wide when the window grew — most
+        // visibly in full screen, where the settings sat in a narrow column with
+        // the rest of the window empty around it.
+        .frame(minWidth: 640, minHeight: 480)
         .onChange(of: searchText) { _, newValue in
             let matches = tabsMatchingSearch(newValue)
             guard let firstMatch = matches.first else { return }
@@ -829,6 +838,7 @@ struct SettingsView: View {
             .colorPicker,
             .shelf,
             .downloads,
+            .tools,
             .shortcuts,
             // Developer
             .stats,
@@ -836,7 +846,8 @@ struct SettingsView: View {
             // Integrations
             .extensions,
             // Info
-            .about
+            .about,
+            .changelog
         ]
 
         return ordered.filter { isTabVisible($0) }
@@ -1102,7 +1113,6 @@ struct SettingsView: View {
         case .shelf:
             SettingsForm(tab: .shelf) {
                 Shelf()
-                BasketSettingsSection()
             }
         case .tools:
             SettingsForm(tab: .tools) {
@@ -1129,6 +1139,10 @@ struct SettingsView: View {
                 SettingsForm(tab: .about) {
                     About(updaterController: SPUStandardUpdaterController(startingUpdater: false, updaterDelegate: nil, userDriverDelegate: nil))
                 }
+            }
+        case .changelog:
+            SettingsForm(tab: .changelog) {
+                ChangelogSettingsView()
             }
         }
     }
@@ -4570,6 +4584,11 @@ struct Shelf: View {
             if quickShareProvider == "LocalSend" {
                 LocalSendSettingsSection(highlightID: highlightID)
             }
+
+            // Inside the Form, not beside it: a bare `Section` has none of the
+            // grouped form's styling, so the Basket controls came out as
+            // left-hand checkboxes on a grey block that ran off the panel.
+            BasketSettingsSection()
         }
         .accentColor(.effectiveAccent)
         .navigationTitle("Shelf")

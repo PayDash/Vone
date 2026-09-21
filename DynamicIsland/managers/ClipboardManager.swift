@@ -30,6 +30,14 @@ struct ClipboardItem: Identifiable, Codable {
     let timestamp: Date
     let preview: String
     var isPinned: Bool = false
+
+    /// Text recognised inside the image, filled in a moment after the copy.
+    ///
+    /// An image entry previews as "Image (240 KB)" — the one thing a search for
+    /// the words on screen can never match — so what Vision reads out of it is
+    /// kept beside the entry and searched too. Optional, so a history saved
+    /// before this existed still decodes.
+    var ocrText: String?
     
     /// Image bytes for items captured while history persistence is off.
     ///
@@ -147,6 +155,21 @@ struct ClipboardItem: Identifiable, Codable {
                imageFileName == other.imageFileName &&
                fileURLs == other.fileURLs &&
                type == other.type
+    }
+
+    /// Whether this entry answers a clipboard search.
+    ///
+    /// The surfaces that search share this instead of spelling it out, so a
+    /// field added here — `ocrText` was the most recent — becomes searchable in
+    /// every one of them rather than in the ones someone remembered to update.
+    func matches(_ query: String) -> Bool {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return true }
+
+        if preview.localizedCaseInsensitiveContains(needle) { return true }
+        if type.displayName.localizedCaseInsensitiveContains(needle) { return true }
+        if let ocrText, ocrText.localizedCaseInsensitiveContains(needle) { return true }
+        return false
     }
     
     static func generatePreview(stringData: String, type: ClipboardItemType) -> String {
@@ -712,6 +735,47 @@ class ClipboardManager: ObservableObject {
             }
             
             self.saveHistoryToDefaults()
+            self.indexTextInImage(for: item.id)
+        }
+    }
+
+    // MARK: - Recognised text in images
+
+    /// Runs OCR over a freshly copied image so its contents become searchable.
+    ///
+    /// Recognition is slow, so it runs on the OCR service's own queue and the
+    /// entry appears in the list immediately with the text arriving behind it.
+    /// Only images are indexed: anything with real text already carries it in
+    /// `stringData`, and a screenshot is the case the preview label cannot help
+    /// with.
+    private func indexTextInImage(for itemID: UUID) {
+        guard Defaults[.enableOCR] else { return }
+        guard let item = clipboardHistory.first(where: { $0.id == itemID }),
+              item.type == .image,
+              item.ocrText == nil,
+              let data = item.getImageData()
+        else { return }
+
+        Task { [weak self] in
+            guard let text = await OCRService.shared.recognizeText(inImageData: data),
+                  !text.isEmpty else { return }
+            await MainActor.run {
+                self?.attachOCRText(text, to: itemID)
+            }
+        }
+    }
+
+    /// Stores recognised text against an entry, wherever it now lives.
+    private func attachOCRText(_ text: String, to itemID: UUID) {
+        if let index = clipboardHistory.firstIndex(where: { $0.id == itemID }) {
+            clipboardHistory[index].ocrText = text
+            saveHistoryToDefaults()
+            return
+        }
+
+        if let index = pinnedItems.firstIndex(where: { $0.id == itemID }) {
+            pinnedItems[index].ocrText = text
+            savePinnedItemsToDefaults()
         }
     }
     

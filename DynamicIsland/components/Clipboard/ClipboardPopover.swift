@@ -31,10 +31,7 @@ struct ClipboardPopover: View {
         if searchText.isEmpty {
             return allItems
         } else {
-            return allItems.filter { item in
-                item.preview.localizedCaseInsensitiveContains(searchText) ||
-                item.type.displayName.localizedCaseInsensitiveContains(searchText)
-            }
+            return allItems.filter { $0.matches(searchText) }
         }
     }
     

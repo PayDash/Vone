@@ -135,10 +135,7 @@ struct ClipboardWindowContent: View {
         if searchText.isEmpty {
             return items
         } else {
-            return items.filter { item in
-                item.preview.localizedCaseInsensitiveContains(searchText) ||
-                item.type.displayName.localizedCaseInsensitiveContains(searchText)
-            }
+            return items.filter { $0.matches(searchText) }
         }
     }
     

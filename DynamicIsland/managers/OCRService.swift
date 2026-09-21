@@ -137,6 +137,24 @@ final class OCRService: ObservableObject {
         await MainActor.run { self.succeed(with: text) }
     }
 
+    /// Recognises encoded image data and hands the text back without touching
+    /// the clipboard, the panel or the feedback sound.
+    ///
+    /// Used by the clipboard indexer: a copied screenshot should become
+    /// searchable quietly, not announce that recognition happened.
+    func recognizeText(inImageData data: Data) async -> String? {
+        await withCheckedContinuation { continuation in
+            queue.async {
+                guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+                      let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: self.recognize(cgImage: image))
+            }
+        }
+    }
+
     /// Recognises this file if Vision is likely to have something to say about it.
     static func isRecognizable(_ url: URL) -> Bool {
         guard let type = UTType(filenameExtension: url.pathExtension) else { return false }

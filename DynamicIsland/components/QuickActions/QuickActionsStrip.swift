@@ -29,15 +29,20 @@ import UniformTypeIdentifiers
 /// The row is wider than the panel it lives in, so it scrolls -- see
 /// `ScrollableRow` for why it does not use a plain `ScrollView`.
 struct QuickActionsStrip: View {
-    let items: [TrayDrop.DropItem]
-    /// Called with the items a consuming action (Trash) has taken over.
-    var onConsume: (([TrayDrop.DropItem]) -> Void)? = nil
+    /// What the tiles act on.
+    ///
+    /// URLs rather than either surface's item type: the strip was written around
+    /// the Basket's `TrayDrop.DropItem`, and the Shelf holds `ShelfItem`, whose
+    /// files live behind bookmarks that have to be resolved first. The URL is the
+    /// only thing both sides have.
+    let urls: [URL]
+    /// Called with the URLs a consuming action (Trash) has taken over, so the
+    /// surface that owns them can let them go.
+    var onConsume: (([URL]) -> Void)? = nil
     var showsTitles: Bool = true
 
     @State private var targetedActionID: String?
     @State private var hoveredActionID: String?
-
-    private var urls: [URL] { items.fileURLs }
 
     /// Height of the row, including the strip the scrollbar is drawn in.
     private static func rowHeight(showsTitles: Bool) -> CGFloat {
@@ -58,13 +63,13 @@ struct QuickActionsStrip: View {
     private func tile(_ action: QuickAction) -> some View {
         let isTargeted = targetedActionID == action.id
         let isHovered = hoveredActionID == action.id
-        let isEnabled = !items.isEmpty
+        let isEnabled = !urls.isEmpty
 
         return Button {
             guard isEnabled else { return }
             action.perform(urls)
             if action.consumesItems {
-                onConsume?(items)
+                onConsume?(urls)
             }
         } label: {
             VStack(spacing: 3) {
