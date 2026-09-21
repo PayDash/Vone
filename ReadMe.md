@@ -15,25 +15,12 @@
   <a href="https://github.com/PayDash/Vone/releases">
     <img src="https://img.shields.io/github/downloads/PayDash/Vone/total?label=Downloads" alt="GitHub downloads"/>
   </a>
-  <a href="https://discord.gg/PaqFkRTDF8">
-    <img src="https://dcbadge.limes.pink/api/server/https://discord.gg/PaqFkRTDF8?style=flat" alt="Discord server"/>
-  </a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/sponsors/Ebullioscopic">
-    <img src="https://img.shields.io/badge/Sponsor-Ebullioscopic-ff69b4?style=for-the-badge&logo=github" alt="Sponsor Ebullioscopic"/>
-  </a>
   <a href="https://github.com/PayDash/Vone/releases/latest">
     <img src="https://img.shields.io/badge/Download-Vone%20for%20macOS-0A84FF?style=for-the-badge&logo=apple" alt="Download Vone for macOS"/>
   </a>
-  <a href="https://www.buymeacoffee.com/kryoscopic">
-    <img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-kryoscopic-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=000000" alt="Buy Me a Coffee for kryoscopic"/>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://discord.gg/PaqFkRTDF8">Join our Discord community</a>
 </p>
 
 Vone turns the MacBook notch into a focused command surface for media, system insight, and quick utilities. It stays out of the way until needed, then expands with responsive, native SwiftUI animations.
@@ -125,16 +112,6 @@ Vone builds upon the work of several open-source projects and draws inspiration 
 
 - [**OpenRouter**](https://openrouter.ai) - API for getting automated model pricing
 
-## Contributors
-
-<a href="https://github.com/PayDash/Vone/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=PayDash/Vone" />
-</a>
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=PayDash/Vone&type=timeline&legend=top-left)](https://www.star-history.com/#PayDash/Vone&type=timeline&legend=top-left)
-
 ## Updating Existing Clones
 If you previously cloned DynamicIsland, update the remote to track the Vone repository:
 
@@ -143,27 +120,3 @@ git remote set-url origin https://github.com/PayDash/Vone.git
 ```
 
 A heartfelt thanks to [TheBoredTeam](https://github.com/TheBoredTeam) for being supportive and being totally awesome, Vone would not have been possible without Boring.Notch
-
----
-
-<p align="center">
-  <img src=".github/assets/iosdevcentre.jpeg" alt="iOS Development Centre exterior" width="420">
-  <br>
-  <sub>Backed by</sub>
-  <br>
-  <strong>iOS Development Centre</strong>
-  <br>
-  Powered by Apple and Infosys
-  <br>
-  SRM Institute of Science and Technology, Chennai, India
-</p>
-
-<p align="center">
-  <a href="https://buymeacoffee.com/kryoscopic">
-    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="200" />
-  </a>
-</p>
-
-<p align="center">
-  Your support helps fund teaching children software development.
-</p>
