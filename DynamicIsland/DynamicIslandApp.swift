@@ -120,6 +120,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     let systemTimerBridge = SystemTimerBridge.shared
     let extensionXPCServiceHost = ExtensionXPCServiceHost.shared
     let extensionRPCServer = ExtensionRPCServer.shared
+    let basketManager = BasketManager.shared  // NEW: floating tray revealed by shaking during a drag
     var closeNotchWorkItem: DispatchWorkItem?
     private var previousScreens: [NSScreen]?
     private var onboardingWindowController: NSWindowController?
@@ -771,6 +772,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if !AppRuntimeEnvironment.isUITesting {
             PrivacyIndicatorManager.shared.startMonitoring()
             networkConnectivityManager.startMonitoring()
+        }
+
+        // Setup Basket (floating tray). Only watches drags, so it costs nothing
+        // until the user shakes the pointer mid-drag.
+        if Defaults[.enableBasket] && !AppRuntimeEnvironment.isUITesting {
+            basketManager.start()
         }
         
         // Setup Real-time Audio Waveform capture if enabled
