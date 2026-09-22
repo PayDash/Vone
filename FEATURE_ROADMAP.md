@@ -413,4 +413,4 @@ Notes that decide how these are built:
 _Sources reviewed: getdroppy.app home, /compare, /docs, /docs/droplets, /docs/shelf,
 /docs/basket, /docs/clipboard, /docs/cloud, and the notch-capabilities blog post;
 dockflowapp.io home and /uses/mac-dock-replacement; stashformac.com home and FAQ.
-Vone inventory taken from `main` at commit `f6ddba4`, gaps re-checked at M1 close._
+Vone inventory taken from `main` at commit `f6ddba4`, gaps re-checked at M1 and M2 close._
