@@ -2,7 +2,7 @@ import Foundation
 import Defaults
 
 enum ProviderID: String, CaseIterable, Identifiable {
-    case claude, codex, cursor, antigravity, newAPI
+    case claude, codex, cursor, antigravity, newAPI, tokscale
     var id: String { rawValue }
     var displayName: String {
         switch self {
@@ -11,6 +11,7 @@ enum ProviderID: String, CaseIterable, Identifiable {
         case .cursor: return "Cursor"
         case .antigravity: return "Antigravity"
         case .newAPI: return "New API"
+        case .tokscale: return "Tokscale"
         }
     }
     var enabledKey: Defaults.Key<Bool> {
@@ -20,6 +21,7 @@ enum ProviderID: String, CaseIterable, Identifiable {
         case .cursor: return .enableCursorProvider
         case .antigravity: return .enableAntigravityProvider
         case .newAPI: return .enableNewAPIProvider
+        case .tokscale: return .enableTokscaleProvider
         }
     }
 }
@@ -64,6 +66,9 @@ struct UsageSnapshot: Equatable {
     var models: [ModelUsage] = []
     var plan: String? = nil // Subscription plan label (e.g. "Max 5x"); provided by Claude only, nil otherwise.
     var newAPIAccounts: [NewAPIAccountSnapshot] = []
+    /// Cross-agent totals from tokscale. Set by `TokscaleUsageProvider` only; the
+    /// per-CLI providers leave it nil and the card falls back to its own windows.
+    var tokscale: TokscaleBreakdown? = nil
     var lastUpdated: Date = .distantPast
 }
 

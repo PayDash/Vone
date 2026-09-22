@@ -21,7 +21,13 @@ final class LLMUsageManager: ObservableObject {
 
     private var enabledProviders: [UsageProvider] {
         if let injectedProviders { return injectedProviders }
-        return Self.allProviders.filter { Defaults[$0.id.enabledKey] }
+        var providers = Self.allProviders.filter { Defaults[$0.id.enabledKey] }
+        // Built per refresh, unlike the list above, so a path the user types into
+        // Settings is picked up without relaunching.
+        if Defaults[.enableTokscaleProvider] {
+            providers.append(TokscaleUsageProvider(explicitPath: Defaults[.tokscaleBinaryPath]))
+        }
+        return providers
     }
 
     func refreshAll(force: Bool = false) {

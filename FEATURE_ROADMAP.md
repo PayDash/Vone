@@ -1,12 +1,13 @@
 # Vone Feature Roadmap — parity with paid notch apps
 
-Status: **M1 complete · M2/M3/M4 scoped** · Owner: Vone · Basis: review of Droppy
+Status: **M1 and M2 complete · M3/M4 scoped** · Owner: Vone · Basis: review of Droppy
 (getdroppy.app) docs + public feature set, cross-checked against Vone `main`, plus
 DockFlow and Stash for M4 (§10).
 
-M1 is not tracked here any more. `CHANGELOG.md` is the record of what shipped, and the
-same changelog is readable inside the app (Settings ▸ Changelog), so this document now
-holds only the work that is left plus the reference material that outlives it.
+M1 and M2 are not tracked here any more. `CHANGELOG.md` is the record of what shipped,
+and the same changelog is readable inside the app (Settings ▸ Changelog), so this
+document now holds only the work that is left plus the reference material that outlives
+it.
 
 ---
 
@@ -72,6 +73,8 @@ Verified present in `DynamicIsland/`:
 | LLM usage (Claude, Codex, Antigravity, new-api) | `managers/LLMUsage/**` |
 | Extension ecosystem + RPC + XPC host | `services/Extensions/**`, `AtollExtensionKit` |
 | Colour picker, network monitor, battery, Bluetooth/AirPods battery, Do Not Disturb, Siri monitor, Lunar brightness, BetterDisplay, display controls | various managers |
+| Cross-agent token/cost totals, from the user's own `tokscale` install | `managers/LLMUsage/Tokscale*.swift` (opt-in, Settings ▸ LLM Providers) |
+| Document, PDF and video conversion (PDF size reduction, documents → PDF/text/RTF/HTML, video target size) | `components/Shelf/Services/Conversion*.swift` |
 | Idle animations, Lottie, parallax, gestures, KeyboardShortcuts | `components/`, `animations/` |
 | Image processing: background removal, conversion, PDF creation | `components/Shelf/Services/ImageProcessingService.swift` (`VNGenerateForegroundInstanceMaskRequest` for the cut-out) |
 | Basket, Quick Action tiles, Action Ring, Emoji Picker, Window Snap, on-device OCR, Tools settings | `BasketManager`, `QuickActionRegistry`, `RingActionManager`, `EmojiPickerManager`, `WindowSnapManager`, `OCRService` — shipped in M1 |
@@ -82,15 +85,15 @@ Priority: **P0** flagship/user-visible differentiators · **P1** high value · *
 Effort: S ≤ 1 day · M ≤ 3 days · L ≤ 1 week · XL > 1 week.
 
 The P0 surfaces — Basket, Quick Action tiles, Ring, Emoji Picker, Window Snap, OCR —
-shipped in M1 and have left this list. What remains:
+shipped in M1, and the Converters and Agents rows shipped in M2 (via `ConversionService`
+and the tokscale provider, both in the changelog), so they have left this list too.
+What this leaves:
 
 | # | Feature | What Droppy does | Vone status | Pri | Effort |
 |---|---|---|---|---|---|
 | 1 | **Shelf widgets** | Any extension can place a widget on the shelf, alone or beside another | 🟡 Shelf exists, widget slots unverified | P1 | M |
 | 2 | **Non-notch mode** | Floating shelf + menu-bar-only on notch-less Macs and external displays | 🟡 unverified (`MenuBarLayout`, `NotchSpaceManager`) | P1 | M |
-| 3 | **Converters** | Local file conversion (images/docs); PDF compression; video "target size" compression | 🟡 `ImageProcessingService` does the image half inside the Shelf; documents, PDF compression and video sizing are missing (§7) | P1 | M–L |
 | 4 | **Thaw** — menu bar item manager | Hide/arrange menu bar items | 🟡 `MenuBarLayout` only | P1 | M |
-| 5 | **Agents** | Live Claude / Codex / Cursor / Antigravity / OpenCode progress | 🟡 `LLMUsage` covers Claude/Codex/Antigravity; **Cursor + OpenCode missing** | P1 | M |
 | 6 | **Droplet surfaces** | Each extension can expose shelf widget / live activity / lock screen / shortcut / menu-bar item | 🟡 extension kit exists; surface coverage unverified | P1 | M |
 | 7 | **Play Next queue / output picker** | Up-next queue and audio output picker in the player | 🟡 AirPlay/route managers exist, queue unverified | P2 | S |
 | 8 | **Motion art in shelf** | Animated art in the shelf | 🟡 `AnimatedArtworkManager` + Lottie present | P2 | S |
@@ -128,10 +131,6 @@ All new work follows existing Vone patterns:
 
 ## 6. Milestones — what is left
 
-**M2 — File tools (P1)**
-Agent coverage (Cursor, OpenCode) · Converters (§4 row 3, §7 — the image half already
-exists in `ImageProcessingService`).
-
 **M3 — Depth (P1/P2)**
 Non-notch mode · Shelf widgets · Droplet surfaces (§4 rows 1 and 6, kept together — it is
 the same surface work) · Thaw · Play Next queue + output picker · Motion art.
@@ -141,22 +140,15 @@ Dock presets (§10.1) · Edge sliders, corner dials, hidden dock and app profile
 Neither app is Droppy, so neither is parity work; both were asked for on their own
 merits, and both are closed source under the same clean-room terms as §2.
 
-**M1 carry-over — closed.** The three open items were finished: the Quick Action tiles
-now sit on the Shelf as well as in the Basket, copied images are indexed for clipboard
-search, and the Ring chooses a sector by holding and releasing rather than by the click
-landing. What is left inside those features is in §9.2, listed as gaps rather than as
-carry-over.
+## 7. Converters — closed
 
-## 7. Detailed spec — Converters (M2)
+Built and recorded in `CHANGELOG.md`; the code is `components/Shelf/Services/Conversion*.swift`
+(PDFKit, CoreText, AppKit's text system, AVFoundation, so §8's non-goal holds), with one
+chooser shared by the Shelf's **Convert…** item and the **Convert** Quick Action tile.
 
-The only remaining spec worth writing down before it is built; everything else in M2/M3
-is either a small addition to an existing surface or has its shape dictated by the
-extension kit.
-
-`sips`/ImageIO for images, PDFKit for PDF, AVFoundation for video sizing. The image half
-is already in `ImageProcessingService`; the Quick Action tile waits on the rest — a
-converter tile with no converter behind it is a control that cannot do what it says, so
-it is deliberately not offered yet. Ghostscript and friends stay out (§8).
+The one decision worth keeping: PDF size reduction re-renders pages as images, so the text
+stops being selectable, and a conversion that cannot make the file smaller fails with an
+explanation rather than returning a larger or half-written file.
 
 ## 8. Explicit non-goals
 
@@ -191,12 +183,36 @@ taking.
 | Area | Missing |
 |---|---|
 | OCR | Copied images are indexed into clipboard search now (Vision, in the background, gated on the recognition setting). A PDF is still read 50 pages at a time; a longer document has its tail skipped, deliberately, rather than holding the recognition queue for minutes. |
-| Quick Actions | On the **Basket and the Shelf** now. The Convert tile waits on §7. |
+| Quick Actions | On the **Basket and the Shelf**, and the Convert tile shipped in M2. Tiles still act on files only: nothing takes the clipboard or a text selection. |
 | Ring | A sector is chosen by **hold-and-release**, and a release that lands off the sector leaves the ring open. No user-ordered actions or extension contributions yet, and the four actions are still the built-in set. |
 | Window Snap | Hotkeys only — no pointer-drag-to-edge snapping. No thirds or next-display positions. |
 | Emoji Picker | Catalogue is a curated ~200 entries; no skin-tone variants or generated full set. Its entry names and keywords stay English on purpose: they are the search index and double as tile tooltips, so translating one without moving the other would leave the picker searching in English while reading in another language. |
 | Changelog | Reads the `CHANGELOG.md` the build shipped with, so a release published after this build is not listed until the app updates. The document itself is English; only the page around it is translated. |
-| Localisation | Catalogues are current as of M1 (see §9.3 for how to keep them that way). The rest of the app still holds user-facing strings that were never localisable — `SettingsPermissionCallout`'s **call sites** pass their message as a plain `String`, and the wider sweep in #789 did not reach every file. Counted at ~580 candidate literals across ~90 files when M1 was finished, most of them diagnostics rather than UI. |
+| Localisation | The build-input catalogue is current as of M2 (§9.3): the refresh extracted the new keys, including the Usage tab's Session / Today / Week row labels, which had been passed to the card as plain `String`s and so had never been extracted at all. The **repository-root catalogue is badly out of step** — measured at M2 close (after both refreshes were synced into it) it is missing **875 keys** the build input has and carries **70** the build input no longer does (renamed or dropped strings), so it is a hand-maintained copy that has drifted far beyond the keys each refresh adds. Reconciling it is its own job, not a line in a feature PR. Separately, the rest of the app still holds user-facing strings that were never localisable — `SettingsPermissionCallout`'s **call sites** pass their message as a plain `String`, and the wider sweep in #789 did not reach every file. Counted at ~580 candidate literals across ~90 files when M1 was finished, most of them diagnostics rather than UI. |
+| Settings search | The sidebar's search is a **hand-maintained index** (`SettingsSearchIndex.entries`): a setting is findable only if someone added an entry for it, with a `highlightID` string that has to match the `settingsHighlight(id:)` at the call site exactly, or selecting the result scrolls nowhere. Matching is a case-insensitive substring over that entry's title and keywords — no fuzzy match, no synonyms, and nothing derived from the settings themselves. Its coverage is therefore whatever the last person remembered: the whole LLM provider group was missing until M2, and the Tokscale card's rows were added at the same time. Anything that reads like "search does not find X" is most likely this, and the fix is one line in that list rather than a change to the matcher. |
+
+
+- **Vone has no language setting of its own.** Nothing under `DynamicIsland/` reads or
+  writes a locale, and no Settings pane offers one, so there is nothing for settings search
+  to find: searching "language" or "region" correctly returns nothing. On macOS 13+ a
+  per-app language is set in **System Settings ▸ General ▸ Language & Region ▸
+  Applications**, which writes `AppleLanguages` into the app's own defaults — Vone appears
+  there once the built app carries more than one localization.
+- **Whether it appears at all is unverified.** `knownRegions` in `project.pbxproj` lists
+  only `en, tr, Base, hi, ta, gu, nl`, while the build-input catalogue carries **19**
+  languages (ar, cs, de, en, en-GB, es, fr, hu, it, ko, nl, pl, pt-BR, ru, th, tr, uk,
+  zh-Hans, zh-Hant). That list is stale with respect to the catalogue and may be why the
+  per-app language list looked empty; confirm against a build's `Contents/Resources/*.lproj`
+  before believing either answer.
+
+The options, if the switch is to live inside Vone: (a) add nothing and document the System
+Settings path in the relevant pane's footer, (b) add a **Language** row that mirrors the
+system per-app choice and deep-links to it, or (c) add a real in-app picker that writes
+Vone's own `AppleLanguages` and asks for a relaunch. Any of them also needs a settings-search
+entry, since the index (§9.2) is hand-maintained and would not pick the row up on its own.
+Separately worth doing in the same session: the search index has no **synonym or keyword**
+coverage beyond what each entry lists by hand, so "region", "locale" and "app language"
+would each have to be added deliberately even once a setting exists.
 
 ### 9.3 Refreshing the string catalogues
 
@@ -222,6 +238,12 @@ Covered: `WindowSnapManager` geometry and coordinate conversion
 and the changelog parser including the document the app ships
 (`ChangelogParserTests`).
 
+Also covered: the tokscale report mapping — grouping, cache folding, the 5-hour session
+window and quota fallbacks — decoded from fixtures of the CLI's real output, plus binary
+override discovery (`TokscaleUsageProviderTests`); and the converters, from recognition
+through PDF pagination to the "shrinks or refuses" contract for PDF size reduction
+(`ConversionServiceTests`).
+
 Also covered: clipboard search, including the recognised text of an image and a
 stored history written before that field existed (`ClipboardSearchTests`).
 
@@ -236,19 +258,73 @@ run while passing alone. They are worth widening before anyone trusts a red run;
 does not run the Swift test bundle at all, so a failure here is only ever seen locally
 via `xcodebuild test -scheme DynamicIsland`.
 
+Confirmed again at M2 close, which is worth recording because the pattern is the point:
+in a full 350-test run `ClipboardHistoryPersistenceTests` failed twice
+(`testLaunchPurgeDeletesUnpinnedImageFilesButKeepsPinnedOnes`,
+`testSessionOnlyImageGainsAFileWhenPersistenceIsEnabled`) and once; run on its own by
+`-only-testing` it passed 12/12. Neither the clipboard code nor its tests were touched
+by that change. Treat a red `ClipboardHistoryPersistenceTests` in a full run as noise
+until the suite is widened, and reproduce with `-only-testing` before investigating.
+
 ### 9.5 Packaging and local builds
 
-Local test builds need ad-hoc signing because the project expects upstream's team
-(`DEVELOPMENT_TEAM = 9Y64TRM77N`) and no matching identity exists locally. Ad-hoc
-signing requires dropping `com.apple.security.mach-services`, which disables the
-extension XPC service at runtime (§2 rule 3) — without dropping it, `amfid` kills the
-app on launch. `build/vone-adhoc.entitlements` is the tracked entitlements file minus
-that key.
+**Use `scripts/local-build.sh`.** It builds, signs, verifies and launches, and its
+header explains why each step is there. The rest of this section is the reasoning.
 
-Note that CI's attempt to strip it does not work: `plutil -remove
-com.apple.security.mach-services` reads the dots as a **key path**, so it looks for a
-nested `com ▸ apple ▸ security ▸ mach-services` and reports "No value to remove", which
-the workflow accepts as "already absent". The entitlement is still in the built app.
+Local builds cannot use the project's own signing settings: they expect upstream's team
+(`DEVELOPMENT_TEAM = 9Y64TRM77N`) and no matching identity exists locally. That leaves
+entitlements as the hard part — `com.apple.security.mach-services` is restricted, so
+without a provisioning profile `amfid` kills the app on launch, and dropping the key is
+what `build/vone-adhoc.entitlements` is for. Its `$(PRODUCT_BUNDLE_IDENTIFIER)` has to be
+expanded before `codesign` sees it, since `codesign` does not expand build settings, and
+`CODE_SIGN_ENTITLEMENTS` **cannot** be pointed at the file from an `xcodebuild` command
+line because a relative path is resolved against every target's own `SRCROOT` — which
+breaks each Swift package in the dependency graph. Hence: build, then re-sign.
+
+**Ad-hoc signing (`CODE_SIGN_IDENTITY="-"`) is the trap.** An ad-hoc designated
+requirement is derived from the binary's own hash, so every rebuild is, to macOS, a
+different application: the Accessibility, Full Disk Access and Screen Recording grants a
+previous build was given do not transfer, and every Keychain ACL that was answered with
+"Always Allow" no longer matches. The symptom is an app that asks for everything again
+on each build and never remembers the answer. Signing local builds with one stable
+self-signed certificate (`CN=Vone Local Dev`, created once and trusted for code signing)
+makes the requirement `identifier "…dev" and certificate leaf = H"…"` — no hash of the
+build in it — so grants persist. It does **not** restore the extension XPC service; that
+needs a real Apple certificate (Apple Development or Developer ID) with the entitlement
+allowed by a profile.
+
+Note that CI's attempt to strip the restricted entitlement does not work:
+`plutil -remove com.apple.security.mach-services` reads the dots as a **key path**, so it
+looks for a nested `com ▸ apple ▸ security ▸ mach-services` and reports "No value to
+remove", which the workflow accepts as "already absent". The entitlement is still in the
+built app.
+
+### 9.6 The app's language switch — to settle in its own session
+
+Raised by the owner at M2 close and **not** fixed there; keep it as a task, not a question
+that gets re-asked. Two findings, both measured:
+
+- **Vone has no language setting of its own.** Nothing under `DynamicIsland/` reads or
+  writes a locale, and no Settings pane offers one, so there is nothing for settings search
+  to find: searching "language" or "region" correctly returns nothing. On macOS 13+ a
+  per-app language is set in **System Settings ▸ General ▸ Language & Region ▸
+  Applications**, which writes `AppleLanguages` into the app's own defaults — Vone appears
+  there once the built app carries more than one localization.
+- **Whether it appears at all is unverified.** `knownRegions` in `project.pbxproj` lists
+  only `en, tr, Base, hi, ta, gu, nl`, while the build-input catalogue carries **19**
+  languages (ar, cs, de, en, en-GB, es, fr, hu, it, ko, nl, pl, pt-BR, ru, th, tr, uk,
+  zh-Hans, zh-Hant). That list is stale with respect to the catalogue and may be why the
+  per-app language list looked empty; confirm against a build's `Contents/Resources/*.lproj`
+  before believing either answer.
+
+The options, if the switch is to live inside Vone: (a) add nothing and document the System
+Settings path in the relevant pane's footer, (b) add a **Language** row that mirrors the
+system per-app choice and deep-links to it, or (c) add a real in-app picker that writes
+Vone's own `AppleLanguages` and asks for a relaunch. Any of them also needs a settings-search
+entry, since the index (§9.2) is hand-maintained and would not pick the row up on its own.
+Separately worth doing in the same session: the search index has no **synonym or keyword**
+coverage beyond what each entry lists by hand, so "region", "locale" and "app language"
+would each have to be added deliberately even once a setting exists.
 
 ## 10. Beyond Droppy — two paid utilities worth taking capability from
 

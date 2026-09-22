@@ -1287,6 +1287,34 @@ extension Defaults.Keys {
     static let enableAntigravityProvider = Key<Bool>("enableAntigravityProvider", default: true)
     static let enableNewAPIProvider = Key<Bool>("enableNewAPIProvider", default: false)
     static let newAPIAccounts = Key<[NewAPIAccount]>("newAPIAccounts", default: [])
+    /// One card covering every agent the user's own tokscale install can read.
+    /// Off by default: it needs a separate CLI the user installs themselves, so it
+    /// is turned on deliberately from Settings ▸ LLM Providers rather than
+    /// appearing as a "not found" card for everyone who does not have tokscale.
+    static let enableTokscaleProvider = Key<Bool>("enableTokscaleProvider", default: false)
+    /// Optional path to the `tokscale` executable. Empty means auto-discover; a
+    /// GUI-launched app cannot see a PATH built in the user's shell, so a manual
+    /// path is the escape hatch when discovery misses an unusual install.
+    static let tokscaleBinaryPath = Key<String>("tokscaleBinaryPath", default: "")
+
+    // MARK: Tokscale card
+    //
+    // Which parts of the cross-agent card to draw. Each section is also a report
+    // that only gets run when the section is on, so turning one off saves the
+    // process, not just the rows.
+    static let tokscaleShowSession = Key<Bool>("tokscaleShowSession", default: true)
+    static let tokscaleShowToday = Key<Bool>("tokscaleShowToday", default: true)
+    static let tokscaleShowWeek = Key<Bool>("tokscaleShowWeek", default: true)
+    static let tokscaleShowAllTime = Key<Bool>("tokscaleShowAllTime", default: true)
+    /// Total active time, longest run and session count, from `tokscale time-metrics`.
+    static let tokscaleShowActivity = Key<Bool>("tokscaleShowActivity", default: true)
+    static let tokscaleShowQuotas = Key<Bool>("tokscaleShowQuotas", default: true)
+    static let tokscaleShowAgents = Key<Bool>("tokscaleShowAgents", default: true)
+    static let tokscaleShowModels = Key<Bool>("tokscaleShowModels", default: true)
+    /// Quota providers the card leaves out, by the name tokscale reports them
+    /// under ("Copilot", "Claude Code", …). Hidden rather than shown, because the
+    /// list is discovered at runtime and a new provider should appear by default.
+    static let tokscaleHiddenQuotaProviders = Key<[String]>("tokscaleHiddenQuotaProviders", default: [])
     static let autoStartStatsMonitoring = Key<Bool>("autoStartStatsMonitoring", default: true)
     static let statsStopWhenNotchCloses = Key<Bool>("statsStopWhenNotchCloses", default: true)
     static let statsUpdateInterval = Key<Double>("statsUpdateInterval", default: 1.0)

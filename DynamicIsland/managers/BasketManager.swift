@@ -89,14 +89,19 @@ extension Defaults.Keys {
     static let basketShakeSensitivity = Key<BasketShakeSensitivity>("basketShakeSensitivity", default: .medium)
     static let basketAllowsMultiple = Key<Bool>("basketAllowsMultiple", default: false)
     static let basketDismissesWhenEmptied = Key<Bool>("basketDismissesWhenEmptied", default: true)
-    /// Keeps the tray under the pointer while it is on screen.
-    static let basketFollowsCursor = Key<Bool>("basketFollowsCursor", default: true)
+    /// Moves the tray with the pointer while a file is being dragged.
+    ///
+    /// Off by default, and deliberately so: a tray that chases the pointer can
+    /// never be dropped onto, because it is always moving away from the file being
+    /// carried. On, it keeps the tray beside the cursor for someone who only ever
+    /// finishes a drag into it the moment it appears.
+    static let basketFollowsCursor = Key<Bool>("basketFollowsCursor", default: false)
     /// Seconds between the reveal trigger and the tray appearing. Non-zero keeps
     /// an accidental shake from flashing a tray on screen.
     static let basketAppearDelay = Key<Double>("basketAppearDelay", default: 0)
     /// Seconds an empty tray waits after a drag ends before it closes itself.
     /// Zero leaves it on screen until it is closed by hand.
-    static let basketHideDelay = Key<Double>("basketHideDelay", default: 1.5)
+    static let basketHideDelay = Key<Double>("basketHideDelay", default: 3)
 }
 
 // MARK: - Model
@@ -177,6 +182,37 @@ struct BasketShakeTracker {
     }
 }
 
+// MARK: - Dismissal
+
+/// Decides when an empty tray may be tidied away at the end of a drag.
+///
+/// The rule that matters: a tray summoned *by* a drag belongs to that drag. It was
+/// just asked for, and the file that summoned it is about to be dropped — closing
+/// it the moment the mouse comes up, before anything can be put in it, is what made
+/// the tray feel like it was vanishing on its own. A tray that predates the drag is
+/// stale, and the end of a drag is a good moment to clear it.
+///
+/// Kept as plain value logic so the timing rules can be driven from a test rather
+/// than from a real mouse, the same way `BasketShakeTracker` is.
+struct BasketEmptyClosePolicy {
+    private var summonedSinceLastTidy = false
+
+    /// A tray was just put on screen.
+    mutating func noteSummon() {
+        summonedSinceLastTidy = true
+    }
+
+    /// A drag has ended. Answers whether empty trays may now be closed.
+    mutating func shouldTidyEmptyTraysAfterDrag() -> Bool {
+        guard summonedSinceLastTidy else { return true }
+        // One drag of grace: the summon is spent here, so the next drag that ends
+        // with the tray still empty does tidy it away.
+        summonedSinceLastTidy = false
+        return false
+    }
+
+}
+
 // MARK: - Manager
 
 /// Presents floating trays next to the pointer. A tray is revealed by shaking the
@@ -203,9 +239,15 @@ final class BasketManager: ObservableObject {
 
     private var revealWork: DispatchWorkItem?
     private var emptyCloseWork: DispatchWorkItem?
+    private var outsideCloseWork: DispatchWorkItem?
+    private var emptyClosePolicy = BasketEmptyClosePolicy()
 
     private static let shakeWindow: TimeInterval = 0.6
     private static let revealCooldown: TimeInterval = 0.7
+    /// How long a click outside is given to turn into a drag before it is treated
+    /// as a plain click. Picking a file up is a click *and* a drag, and the tray
+    /// must not be dismissed by the click half of that.
+    private static let clickGrace: TimeInterval = 0.45
     private static let followInterval: TimeInterval = 1.0 / 60.0
     static let panelSize = CGSize(width: 248, height: 276)
 
@@ -295,6 +337,7 @@ final class BasketManager: ObservableObject {
         lastRevealTime = now
 
         emptyCloseWork?.cancel()
+        emptyClosePolicy.noteSummon()
 
         if !Defaults[.basketAllowsMultiple], let existing = baskets.first {
             positionPanel(for: existing.id, at: screenPoint)
@@ -411,6 +454,10 @@ final class BasketManager: ObservableObject {
                 isDragging = true
                 resetShakeState()
                 emptyCloseWork?.cancel()
+                // The click that started this drag is not a click on the desktop:
+                // it is the user picking a file up, quite possibly to put in the
+                // tray they summoned a moment ago.
+                outsideCloseWork?.cancel()
 
                 if Defaults[.basketRevealMode] == .instant {
                     reveal(at: NSEvent.mouseLocation)
@@ -429,7 +476,9 @@ final class BasketManager: ObservableObject {
             // A shake that starts a reveal but releases before the appear delay
             // elapses should not leave a tray behind.
             revealWork?.cancel()
-            scheduleEmptyBasketClose()
+            if emptyClosePolicy.shouldTidyEmptyTraysAfterDrag() {
+                scheduleEmptyBasketClose()
+            }
         }
     }
 
@@ -460,6 +509,10 @@ final class BasketManager: ObservableObject {
 
     /// Tidies away trays that are still empty once a drag has finished, so a
     /// reveal that missed does not leave an empty panel on screen.
+    ///
+    /// A tray the pointer is resting in is left alone: the pointer being in it is
+    /// the user about to use it, and closing a panel out from under the cursor is
+    /// the other half of "it disappears on its own".
     private func scheduleEmptyBasketClose() {
         let delay = Defaults[.basketHideDelay]
         guard delay > 0 else { return }
@@ -467,7 +520,9 @@ final class BasketManager: ObservableObject {
         emptyCloseWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
+            let pointer = NSEvent.mouseLocation
             for basket in self.baskets where basket.items.isEmpty {
+                if let frame = self.panels[basket.id]?.frame, frame.contains(pointer) { continue }
                 self.close(basketID: basket.id)
             }
         }
@@ -475,12 +530,21 @@ final class BasketManager: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
+    /// A click outside an empty tray closes it — but only once the click is known
+    /// not to be the start of a drag, because picking a file up is a click too.
     private func handleOutsideClick(at point: CGPoint) {
-        for basket in baskets where basket.items.isEmpty {
-            guard let frame = panels[basket.id]?.frame else { continue }
-            if frame.contains(point) { continue }
-            close(basketID: basket.id)
+        outsideCloseWork?.cancel()
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            for basket in self.baskets where basket.items.isEmpty {
+                guard let frame = self.panels[basket.id]?.frame else { continue }
+                if frame.contains(point) { continue }
+                self.close(basketID: basket.id)
+            }
         }
+        outsideCloseWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.clickGrace, execute: work)
     }
 
     // MARK: Panels

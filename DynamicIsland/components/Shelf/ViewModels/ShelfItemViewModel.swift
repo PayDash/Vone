@@ -482,6 +482,15 @@ final class ShelfItemViewModel: ObservableObject {
             menu.addItem(NSMenuItem.separator())
         }
 
+        // Documents, PDFs and video — the work that is not an image job.
+        let convertibleURLs = selectedFileURLs.filter { ConversionActions.canConvert([$0]) }
+        if !convertibleURLs.isEmpty {
+            let convertItem = NSMenuItem(title: String(localized: "Convert…"), action: nil, keyEquivalent: "")
+            convertItem.identifier = NSUserInterfaceItemIdentifier("Convert…")
+            menu.addItem(convertItem)
+            menu.addItem(NSMenuItem.separator())
+        }
+
         // Add compression option for files/folders (single or multiple)
         if !selectedFileURLs.isEmpty {
             let compressItem = NSMenuItem(title: String(localized: "Compress"), action: nil, keyEquivalent: "")
@@ -698,6 +707,12 @@ final class ShelfItemViewModel: ObservableObject {
                 
             case "Create PDF":
                 handleCreatePDF()
+
+            case "Convert…":
+                let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)
+                let fileURLs = selected.compactMap { $0.fileURL }
+                guard !fileURLs.isEmpty else { break }
+                ConversionActions.present(for: fileURLs)
             
             case "Compress":
                 let selected = ShelfSelectionModel.shared.selectedItems(in: ShelfStateViewModel.shared.items)

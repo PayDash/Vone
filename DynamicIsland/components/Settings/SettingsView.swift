@@ -448,6 +448,19 @@ private enum SettingsSearchIndex {
         SettingsSearchEntry(tab: .stats, title: "Antigravity Provider", keywords: ["llm", "antigravity", "provider", "toggle"], highlightID: SettingsTab.stats.highlightID(for: "Antigravity Provider")),
         SettingsSearchEntry(tab: .stats, title: "New API Provider", keywords: ["llm", "new api", "newapi", "provider", "toggle"], highlightID: SettingsTab.stats.highlightID(for: "New API Provider")),
         SettingsSearchEntry(tab: .stats, title: "New API Accounts", keywords: ["llm", "new api", "newapi", "accounts", "key", "token"], highlightID: SettingsTab.stats.highlightID(for: "New API Accounts")),
+        // The cross-agent card and its sections. Each of these rows carries a
+        // `settingsHighlight`, so a search result can scroll to it.
+        SettingsSearchEntry(tab: .stats, title: "Tokscale", keywords: ["llm", "tokscale", "agents", "all agents", "opencode", "codex", "cursor", "gemini", "copilot", "provider", "cli", "tokens", "cost"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Provider")),
+        SettingsSearchEntry(tab: .stats, title: "Tokscale executable", keywords: ["llm", "tokscale", "path", "binary", "command", "install", "not found"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale executable")),
+        SettingsSearchEntry(tab: .stats, title: "Tokscale card", keywords: ["llm", "tokscale", "card", "customise", "customize", "sections", "rows"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Session window")),
+        SettingsSearchEntry(tab: .stats, title: "Session window", keywords: ["llm", "tokscale", "session", "window", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Session window")),
+        SettingsSearchEntry(tab: .stats, title: "Today window", keywords: ["llm", "tokscale", "today", "window", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Today window")),
+        SettingsSearchEntry(tab: .stats, title: "Week window", keywords: ["llm", "tokscale", "week", "window", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Week window")),
+        SettingsSearchEntry(tab: .stats, title: "All-time total", keywords: ["llm", "tokscale", "all time", "total", "cost", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale All-time total")),
+        SettingsSearchEntry(tab: .stats, title: "Activity", keywords: ["llm", "tokscale", "activity", "active time", "longest", "sessions", "concurrent", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Activity")),
+        SettingsSearchEntry(tab: .stats, title: "Subscription quotas", keywords: ["llm", "tokscale", "quota", "quota providers", "copilot", "subscription", "limits", "hidden"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Subscription quotas")),
+        SettingsSearchEntry(tab: .stats, title: "Top models", keywords: ["llm", "tokscale", "models", "model", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Top models")),
+        SettingsSearchEntry(tab: .stats, title: "Agents", keywords: ["llm", "tokscale", "agents", "open code", "claude", "codex", "card"], highlightID: SettingsTab.stats.highlightID(for: "Tokscale Agents")),
         SettingsSearchEntry(tab: .stats, title: "Stop monitoring after closing the notch", keywords: ["stats", "auto stop"], highlightID: SettingsTab.stats.highlightID(for: "Stop monitoring after closing the notch")),
         SettingsSearchEntry(tab: .stats, title: "CPU Usage", keywords: ["cpu", "graph"], highlightID: SettingsTab.stats.highlightID(for: "CPU Usage")),
         SettingsSearchEntry(tab: .stats, title: "Temperature unit", keywords: ["cpu", "temperature", "celsius", "fahrenheit"], highlightID: SettingsTab.stats.highlightID(for: "Temperature unit")),
@@ -8093,6 +8106,36 @@ struct StatsSettings: View {
     @Default(.enableStatsFeature) var enableStatsFeature
     @Default(.enableLLMUsageFeature) var enableLLMUsageFeature
     @Default(.enableNewAPIProvider) var enableNewAPIProvider
+    @Default(.enableTokscaleProvider) var enableTokscaleProvider
+    @Default(.tokscaleShowQuotas) var tokscaleShowQuotas
+    @Default(.tokscaleHiddenQuotaProviders) var tokscaleHiddenQuotaProviders
+    /// The cross-agent snapshot, read for the list of quota providers to offer.
+    @ObservedObject private var usageManager = LLMUsageManager.shared
+
+    /// Every provider `tokscale usage` has reported, so the list can be offered
+    /// even while some of them are hidden.
+    private var tokscaleKnownQuotaProviders: [String] {
+        guard case .success(let snapshot) = usageManager.results[.tokscale],
+              let quotas = snapshot.tokscale?.quotas else { return [] }
+        return Set(quotas.map(\.provider)).sorted()
+    }
+
+    /// On means shown, so the switch reads the way the card behaves even though
+    /// what is stored is the list of hidden providers.
+    private func tokscaleQuotaProviderBinding(_ provider: String) -> Binding<Bool> {
+        Binding(
+            get: { !tokscaleHiddenQuotaProviders.contains(provider) },
+            set: { isShown in
+                var hidden = tokscaleHiddenQuotaProviders
+                if isShown {
+                    hidden.removeAll { $0 == provider }
+                } else if !hidden.contains(provider) {
+                    hidden.append(provider)
+                }
+                tokscaleHiddenQuotaProviders = hidden
+            }
+        )
+    }
     @Default(.statsStopWhenNotchCloses) var statsStopWhenNotchCloses
     @Default(.statsUpdateInterval) var statsUpdateInterval
     @Default(.showCpuGraph) var showCpuGraph
@@ -8102,6 +8145,10 @@ struct StatsSettings: View {
     @Default(.showDiskGraph) var showDiskGraph
     @Default(.cpuTemperatureUnit) var cpuTemperatureUnit
     @State private var newAPIAccounts = Defaults[.newAPIAccounts]
+    @Default(.tokscaleBinaryPath) var tokscaleBinaryPath
+    /// Where discovery last found the CLI, so Settings can say so instead of
+    /// leaving the user wondering whether the toggle does anything.
+    @State private var tokscaleDetectedPath: String?
     @State private var isNewAPIEditorPresented = false
     @State private var editingNewAPIAccount: NewAPIAccount?
     @State private var accountPendingDeletion: NewAPIAccount?
@@ -8187,13 +8234,122 @@ struct StatsSettings: View {
                     .onChange(of: enableNewAPIProvider) { _, _ in
                         LLMUsageManager.shared.refreshAll(force: true)
                     }
+
+                    Defaults.Toggle(key: .enableTokscaleProvider) {
+                        Text("Tokscale (all agents)")
+                    }
+                    .settingsHighlight(id: highlightID("Tokscale Provider"))
+                    .onChange(of: enableTokscaleProvider) { _, _ in
+                        tokscaleDetectedPath = TokscaleCLI.locate(
+                            explicitPath: tokscaleBinaryPath.isEmpty ? nil : tokscaleBinaryPath
+                        )?.path
+                        LLMUsageManager.shared.refreshAll(force: true)
+                    }
+
+                    if enableTokscaleProvider {
+                        HStack(spacing: 8) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("tokscale executable")
+                                Text(tokscaleDetectedPath.map { "Using \($0)" } ?? "Not found — install tokscale or set the path below")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer()
+                            // The placeholder is a path, not prose: `verbatim` keeps it
+                            // out of the string catalogue.
+                            TextField("", text: $tokscaleBinaryPath, prompt: Text(verbatim: "/opt/homebrew/bin/tokscale"))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                                .onSubmit {
+                                    tokscaleDetectedPath = TokscaleCLI.locate(
+                                        explicitPath: tokscaleBinaryPath.isEmpty ? nil : tokscaleBinaryPath
+                                    )?.path
+                                    LLMUsageManager.shared.refreshAll(force: true)
+                                }
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale executable"))
+                    }
                 } header: {
                     Text("LLM Providers")
                 } footer: {
-                    Text("Choose which AI providers appear in the Usage tab.")
+                    Text("Choose which AI providers appear in the Usage tab. Tokscale needs its own command-line tool installed and is off until you turn it on.")
                         .multilineTextAlignment(.trailing)
                         .foregroundStyle(.secondary)
                     .font(.caption)
+                }
+
+                if enableTokscaleProvider {
+                    Section {
+                        Defaults.Toggle(key: .tokscaleShowSession) {
+                            Text("Session window")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Session window"))
+
+                        Defaults.Toggle(key: .tokscaleShowToday) {
+                            Text("Today window")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Today window"))
+
+                        Defaults.Toggle(key: .tokscaleShowWeek) {
+                            Text("Week window")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Week window"))
+
+                        Defaults.Toggle(key: .tokscaleShowAllTime) {
+                            Text("All-time total")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale All-time total"))
+
+                        Defaults.Toggle(key: .tokscaleShowActivity) {
+                            Text("Activity — active time, longest run, sessions")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Activity"))
+
+                        Defaults.Toggle(key: .tokscaleShowQuotas) {
+                            Text("Subscription quotas")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Subscription quotas"))
+
+                        Defaults.Toggle(key: .tokscaleShowModels) {
+                            Text("Top models")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Top models"))
+
+                        Defaults.Toggle(key: .tokscaleShowAgents) {
+                            Text("Agents")
+                        }
+                        .settingsHighlight(id: highlightID("Tokscale Agents"))
+                    } header: {
+                        Text("Tokscale card")
+                    } footer: {
+                        Text("Choose what the Tokscale card shows. A section that is off is not read from tokscale either, so the card also refreshes with fewer lookups.")
+                            .multilineTextAlignment(.trailing)
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+
+                    if tokscaleShowQuotas {
+                        Section {
+                            if tokscaleKnownQuotaProviders.isEmpty {
+                                Text("No quota reported yet. Anything tokscale can read a subscription window from appears here.")
+                                    .foregroundStyle(.secondary)
+                                    .font(.caption)
+                            } else {
+                                ForEach(tokscaleKnownQuotaProviders, id: \.self) { provider in
+                                    Toggle(provider, isOn: tokscaleQuotaProviderBinding(provider))
+                                }
+                            }
+                        } header: {
+                            Text("Quota providers")
+                        } footer: {
+                            Text("Turn one off to keep its rows out of the card without hiding the whole quota section.")
+                                .multilineTextAlignment(.trailing)
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
                 }
 
                 Section {
@@ -8454,6 +8610,12 @@ struct StatsSettings: View {
         .navigationTitle("Stats")
         .onAppear {
             newAPIAccounts = Defaults[.newAPIAccounts]
+            tokscaleDetectedPath = TokscaleCLI.locate(
+                explicitPath: tokscaleBinaryPath.isEmpty ? nil : tokscaleBinaryPath
+            )?.path
+            // The quota-provider list below is whatever the last snapshot saw, so
+            // ask for one rather than leaving the section empty on first visit.
+            if enableTokscaleProvider { usageManager.refreshAll() }
         }
         .sheet(isPresented: $isNewAPIEditorPresented) {
             NewAPIAccountEditor(account: editingNewAPIAccount) { account, apiKey in

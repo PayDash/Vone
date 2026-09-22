@@ -101,6 +101,24 @@ final class QuickActionRegistry {
         },
 
         QuickAction(
+            id: "convert",
+            title: String(localized: "Convert"),
+            systemImage: "arrow.triangle.2.circlepath",
+            // Only the types the converter can actually read. A tile is offered only
+            // when every file in the selection matches, so an image never shows up
+            // beside a PDF it cannot be turned into.
+            accepts: [
+                .pdf, .plainText, .utf8PlainText, .rtf, .rtfd, .html, .xml,
+                .movie, .video, .audiovisualContent,
+                UTType(filenameExtension: "docx") ?? .data,
+                UTType(filenameExtension: "doc") ?? .data,
+                UTType(filenameExtension: "md") ?? .plainText,
+            ]
+        ) { urls in
+            ConversionActions.present(for: urls)
+        },
+
+        QuickAction(
             id: "copy-path",
             title: String(localized: "Copy Path"),
             systemImage: "doc.on.clipboard"

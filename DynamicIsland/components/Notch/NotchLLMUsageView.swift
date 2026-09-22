@@ -28,6 +28,18 @@ struct NotchLLMUsageView: View {
     @ObservedObject private var manager = LLMUsageManager.shared
     @State private var antigravityPool: AntigravityPool = .gemini
 
+    // Which parts of the tokscale card to draw. Read from the same keys the
+    // provider uses to decide what to fetch, so a hidden section costs nothing.
+    @Default(.tokscaleShowSession) private var tokscaleShowSession
+    @Default(.tokscaleShowToday) private var tokscaleShowToday
+    @Default(.tokscaleShowWeek) private var tokscaleShowWeek
+    @Default(.tokscaleShowAllTime) private var tokscaleShowAllTime
+    @Default(.tokscaleShowActivity) private var tokscaleShowActivity
+    @Default(.tokscaleShowQuotas) private var tokscaleShowQuotas
+    @Default(.tokscaleShowAgents) private var tokscaleShowAgents
+    @Default(.tokscaleShowModels) private var tokscaleShowModels
+    @Default(.tokscaleHiddenQuotaProviders) private var tokscaleHiddenQuotaProviders
+
     private func isEnabled(_ provider: ProviderID) -> Bool { Defaults[provider.enabledKey] }
 
     private var enabledProviders: [ProviderID] {
@@ -102,6 +114,8 @@ struct NotchLLMUsageView: View {
         VStack(alignment: .leading, spacing: 6) {
             if provider == .antigravity {
                 antigravitySuccess(snap)
+            } else if provider == .tokscale, let breakdown = snap.tokscale {
+                tokscaleSuccess(snap, breakdown: breakdown)
             } else if snap.sessionLimit == nil && snap.weekLimit == nil {
                 if provider != .cursor {
                     window("Today", snap.today, prominent: true)
@@ -124,6 +138,112 @@ struct NotchLLMUsageView: View {
             }
         }
     }
+
+    /// Tokscale's card answers what no single CLI can: which agents are being used,
+    /// which models, and what it all adds up to. Windows stay in the same order and
+    /// units as the per-CLI cards so the row reads consistently; every section
+    /// below them is switchable in Settings ▸ Stats, and was also left out of the
+    /// fetch when switched off.
+    private func tokscaleSuccess(_ snap: UsageSnapshot, breakdown: TokscaleBreakdown) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 6) {
+                if tokscaleShowSession { window("Session", snap.session, compact: true) }
+                if tokscaleShowToday { window("Today", snap.today, compact: true) }
+                if tokscaleShowWeek { window("Week", snap.week, compact: true) }
+
+                if tokscaleShowAllTime {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text("All time")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 56, alignment: .leading)
+                        Text(tokens(breakdown.totalTokens))
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Spacer(minLength: 4)
+                        Text(money(breakdown.totalCostUSD))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .help("All-time estimated API-equivalent cost across every agent tokscale can read, from local session files.")
+                    }
+                }
+
+                if tokscaleShowActivity, let activity = breakdown.activity {
+                    Divider().overlay(.white.opacity(0.1))
+                    Text("Activity").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    tokscaleLabeledRow("Active", TokscaleActivity.duration(activity.activeSeconds))
+                    tokscaleLabeledRow("Longest run", TokscaleActivity.duration(activity.longestSessionSeconds))
+                    tokscaleLabeledRow("Sessions", activity.sessionSummary)
+                }
+
+                let quotas = breakdown.quotas.filter { !tokscaleHiddenQuotaProviders.contains($0.provider) }
+                if tokscaleShowQuotas, !quotas.isEmpty {
+                    Divider().overlay(.white.opacity(0.1))
+                    ForEach(quotas) { quota in
+                        quotaGauge("\(quota.displayName) · \(quota.label)", UsageLimit(
+                            used: quota.usedPercent,
+                            limit: 100,
+                            resetsAt: quota.resetsAt
+                        ))
+                    }
+                }
+
+                if tokscaleShowModels, !breakdown.models.isEmpty {
+                    Divider().overlay(.white.opacity(0.1))
+                    Text("Models").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    ForEach(breakdown.models) { model in
+                        tokscaleSpendRow(model.model, tokens: model.tokens, cost: model.costUSD)
+                            .help(model.busiestClient.map { "\(model.model) · mostly \(TokscaleDisplay.name(for: $0))" } ?? model.model)
+                    }
+                }
+
+                if tokscaleShowAgents, !breakdown.clients.isEmpty {
+                    Divider().overlay(.white.opacity(0.1))
+                    Text("Agents").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                    ForEach(breakdown.clients) { client in
+                        tokscaleSpendRow(client.displayName, tokens: client.tokens, cost: client.costUSD)
+                            .help("\(client.tokens) tokens across \(client.messages) messages")
+                    }
+                }
+            }
+            .padding(.bottom, 2)
+        }
+        .frame(height: 135)
+    }
+
+    private func tokscaleLabeledRow(_ label: LocalizedStringKey, _ value: String) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .leading)
+                .lineLimit(1)
+            Text(value)
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func tokscaleSpendRow(_ name: String, tokens tokenCount: Int, cost: Double) -> some View {
+        HStack(spacing: 6) {
+            Text(name)
+                .font(.caption2)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 4)
+            Text(tokens(tokenCount))
+                .font(.caption2.weight(.semibold))
+                .monospacedDigit()
+            Text(money(cost))
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+    }
+
+
 
     private func antigravitySuccess(_ snap: UsageSnapshot) -> some View {
         let isGemini = antigravityPool == .gemini
@@ -284,7 +404,10 @@ struct NotchLLMUsageView: View {
         return hours > 0 ? "resets in \(hours)h \(minutes)m" : "resets in \(minutes)m"
     }
 
-    private func window(_ label: String, _ totals: UsageTotals, prominent: Bool = false, compact: Bool = false) -> some View {
+    /// `LocalizedStringKey` rather than `String` on purpose: every call site passes a
+    /// literal, and a label handed over as a plain `String` is never extracted, which
+    /// left these window names untranslated (§2 rule 5).
+    private func window(_ label: LocalizedStringKey, _ totals: UsageTotals, prominent: Bool = false, compact: Bool = false) -> some View {
         let displayValue: String
         if totals.isPercentage {
             displayValue = "\(totals.totalTokens)%"
@@ -334,6 +457,9 @@ struct NotchLLMUsageView: View {
 
     private func tokens(_ n: Int) -> String {
         switch n {
+        // The cross-agent card is the first to reach billions (cache reads add up),
+        // and "3925.8M" is not a number anyone reads at a glance.
+        case 1_000_000_000...: return String(format: "%.2fB", Double(n) / 1_000_000_000)
         case 1_000_000...: return String(format: "%.1fM", Double(n) / 1_000_000)
         case 1_000...: return String(format: "%.1fk", Double(n) / 1_000)
         default: return "\(n)"
