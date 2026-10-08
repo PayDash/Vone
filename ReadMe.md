@@ -1,36 +1,14 @@
 <p align="center">
   <img src=".github/assets/vone-logo.png" alt="Vone logo" width="120">
 </p>
-<h1 align="center">Vone - DynamicIsland for macOS</h1>
+<h1 align="center">Vone - Useful Dynamic Island</h1>
 <p align="center">
-<a href="https://trendshift.io/repositories/15291" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15291" alt="PayDash%2FVone | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
-</p>
-<p align="center">
-  <a href="https://github.com/PayDash/Vone/stargazers">
-    <img src="https://img.shields.io/github/stars/PayDash/Vone?style=social" alt="GitHub stars"/>
-  </a>
-  <a href="https://github.com/PayDash/Vone/network/members">
-    <img src="https://img.shields.io/github/forks/PayDash/Vone?style=social" alt="GitHub forks"/>
-  </a>
-  <a href="https://github.com/PayDash/Vone/releases">
-    <img src="https://img.shields.io/github/downloads/PayDash/Vone/total?label=Downloads" alt="GitHub downloads"/>
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://github.com/PayDash/Vone/releases/latest">
-    <img src="https://img.shields.io/badge/Download-Vone%20for%20macOS-0A84FF?style=for-the-badge&logo=apple" alt="Download Vone for macOS"/>
-  </a>
-</p>
 
 Vone turns the MacBook notch into a focused command surface for media, system insight, and quick utilities. It stays out of the way until needed, then expands with responsive, native SwiftUI animations.
 
 <p align="center">
   <img src="https://i.postimg.cc/t49mW5yN/Screenshot-2026-03-02-at-6-00-22-PM.png" alt="Vone lock screen" width="920">
 </p>
-
-
-
 
 
 ## Highlights
@@ -78,11 +56,6 @@ Vone turns the MacBook notch into a focused command surface for media, system in
 - Pick the gesture skip behaviour (track vs ±10s) independently from the skip button configuration so swipes can scrub while buttons change tracks—or vice versa.
 - Horizontal swipes trigger the same haptics and button animations you see in the notch, keeping visual feedback consistent with tap interactions.
 
-## Troubleshooting (Basics)
-- After granting Accessibility or Screen Recording, quit and relaunch the app.
-- If metrics are empty, enable categories in Settings → Stats.
-- Media not responding: verify player is active and Music permission is granted.
-
 ## License
 Vone is released under the GPL v3 License. Refer to [LICENSE](LICENSE) for the full terms.
 
@@ -112,11 +85,6 @@ Vone builds upon the work of several open-source projects and draws inspiration 
 
 - [**OpenRouter**](https://openrouter.ai) - API for getting automated model pricing
 
-## Updating Existing Clones
-If you previously cloned DynamicIsland, update the remote to track the Vone repository:
-
 ```bash
 git remote set-url origin https://github.com/PayDash/Vone.git
 ```
-
-A heartfelt thanks to [TheBoredTeam](https://github.com/TheBoredTeam) for being supportive and being totally awesome, Vone would not have been possible without Boring.Notch
